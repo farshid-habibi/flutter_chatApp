@@ -1,17 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_application_1/DashboardScreen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_application_1/constants.dart';
 import 'package:flutter_application_1/Screens/Welcome/welcome_screen.dart';
-// 👈 Make sure this exists
+import 'package:flutter_application_1/DashboardScreen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Supabase.initialize(
     url: 'https://ctqagcifclyvlntfacnc.supabase.co',
-    anonKey:
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN0cWFnY2lmY2x5dmxudGZhY25jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM5NTk5NzcsImV4cCI6MjA2OTUzNTk3N30.HAsOI0qlt02OZqv3H2Y18cR8_M_5Vefzgp5kydYQGWM',
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN0cWFnY2lmY2x5dmxudGZhY25jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM5NTk5NzcsImV4cCI6MjA2OTUzNTk3N30.HAsOI0qlt02OZqv3H2Y18cR8_M_5Vefzgp5kydYQGWM',
   );
 
   runApp(const MyApp());
@@ -22,6 +20,8 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final session = Supabase.instance.client.auth.currentSession;
+
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Flutter Auth',
@@ -53,11 +53,10 @@ class MyApp extends StatelessWidget {
         ),
       ),
 
-      // 👇 Initial screen and route setup
-      initialRoute: '/',
+      initialRoute: session != null ? '/dashboard' : '/',
       routes: {
         '/': (context) => const WelcomeScreen(),
-        '/dashboard': (context) => const DashboardScreen(), // 👈 Added dashboard route
+        '/dashboard': (context) => const DashboardScreen(),
       },
     );
   }

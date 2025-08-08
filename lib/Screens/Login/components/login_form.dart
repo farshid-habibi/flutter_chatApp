@@ -34,9 +34,9 @@ class _LoginFormState extends State<LoginForm> {
         _showError('Login failed');
       }
     } on AuthException catch (e) {
-      _showError(e.message);
+      _showError('Login failed');
     } catch (e) {
-      _showError('Unexpected error occurred');
+       _showError('Login failed');
     } finally {
       setState(() => _isLoading = false);
     }
@@ -50,70 +50,69 @@ class _LoginFormState extends State<LoginForm> {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
+    return Form(
+      key: _formKey,
       child: SingleChildScrollView(
-        child: Padding(
+        child: Container(
           padding: const EdgeInsets.all(defaultPadding),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const SizedBox(height: 40),
-                TextFormField(
-                  controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  textInputAction: TextInputAction.next,
-                  cursorColor: kPrimaryColor,
-                  decoration: const InputDecoration(
-                    hintText: "Your email",
-                    prefixIcon: Padding(
-                      padding: EdgeInsets.all(defaultPadding),
-                      child: Icon(Icons.person),
-                    ),
+          decoration: BoxDecoration(
+            color: Colors.white, 
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SizedBox(height: 40),
+              TextFormField(
+                controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.next,
+                cursorColor: kPrimaryColor,
+                decoration: const InputDecoration(
+                  hintText: "Your email",
+                  prefixIcon: Padding(
+                    padding: EdgeInsets.all(defaultPadding),
+                    child: Icon(Icons.person),
                   ),
-                  validator: (value) =>
-                      value!.isEmpty ? 'Please enter your email' : null,
                 ),
-                const SizedBox(height: defaultPadding),
-                TextFormField(
-                  controller: _passwordController,
-                  textInputAction: TextInputAction.done,
-                  obscureText: true,
-                  cursorColor: kPrimaryColor,
-                  decoration: const InputDecoration(
-                    hintText: "Your password",
-                    prefixIcon: Padding(
-                      padding: EdgeInsets.all(defaultPadding),
-                      child: Icon(Icons.lock),
-                    ),
+                validator: (value) =>
+                    value!.isEmpty ? 'Please enter your email' : null,
+              ),
+              const SizedBox(height: defaultPadding),
+              TextFormField(
+                controller: _passwordController,
+                textInputAction: TextInputAction.done,
+                obscureText: true,
+                cursorColor: kPrimaryColor,
+                decoration: const InputDecoration(
+                  hintText: "Your password",
+                  prefixIcon: Padding(
+                    padding: EdgeInsets.all(defaultPadding),
+                    child: Icon(Icons.lock),
                   ),
-                  validator: (value) =>
-                      value!.isEmpty ? 'Please enter your password' : null,
                 ),
-                const SizedBox(height: defaultPadding),
-                _isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : ElevatedButton(
-                        onPressed: _signIn,
-                        child: const Text("LOGIN"),
-                      ),
-                const SizedBox(height: defaultPadding),
-                AlreadyHaveAnAccountCheck(
-                  press: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) {
-                          return const SignUpScreen();
-                        },
-                      ),
-                    );
-                  },
-                ),
-              ],
-            ),
+                validator: (value) =>
+                    value!.isEmpty ? 'Please enter your password' : null,
+              ),
+              const SizedBox(height: defaultPadding),
+              _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : ElevatedButton(
+                      onPressed: _signIn,
+                      child: const Text("LOGIN"),
+                    ),
+              const SizedBox(height: defaultPadding),
+              AlreadyHaveAnAccountCheck(
+                press: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const SignUpScreen(),
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
         ),
       ),

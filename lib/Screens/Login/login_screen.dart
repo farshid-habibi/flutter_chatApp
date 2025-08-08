@@ -29,7 +29,6 @@ class LoginScreen extends StatelessWidget {
                       child: LoginForm(),
                     ),
                     SizedBox(height: defaultPadding / 2),
-                    // SocalLogin() // اگر نیاز داری این رو بعداً اضافه کن
                   ],
                 ),
               ),
@@ -60,7 +59,6 @@ class MobileLoginScreen extends StatelessWidget {
             Spacer(),
           ],
         ),
-        // SocalLogin() // اگر نیاز داری این رو بعداً اضافه کن
       ],
     );
   }

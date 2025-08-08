@@ -43,9 +43,9 @@ class _SignUpFormState extends State<SignUpForm> {
         _showError('Sign up failed');
       }
     } on AuthException catch (e) {
-      _showError(e.message);
+        _showError('Sign up failed');
     } catch (e) {
-      _showError('Unexpected error occurred');
+        _showError('Sign up failed');
     } finally {
       setState(() => _isLoading = false);
     }
@@ -63,6 +63,7 @@ class _SignUpFormState extends State<SignUpForm> {
       key: _formKey,
       child: SingleChildScrollView(
         child: Column(
+      
           children: [
             TextFormField(
               keyboardType: TextInputType.emailAddress,

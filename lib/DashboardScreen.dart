@@ -15,8 +15,9 @@ class DashboardScreen extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
-              await Supabase.instance.client.auth.signOut();
-              Navigator.pushReplacementNamed(context, '/');
+            await Supabase.instance.client.auth.signOut();
+             Navigator.pushReplacementNamed(context, '/');
+
             },
           )
         ],
