@@ -1,34 +1,36 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/components/background.dart';
+import 'package:flutter_application_1/constants.dart';
 import 'package:flutter_application_1/responsive.dart';
 
 import 'components/login_form.dart';
 import 'components/login_screen_top_image.dart';
 
 class LoginScreen extends StatelessWidget {
-  const LoginScreen({
-    Key? key,
-    required String initialEmail,
-    required String initialPassword,
-  }) : super(key: key);
+  const LoginScreen({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return Background(
+    return const Background(
       child: SingleChildScrollView(
         child: Responsive(
-          mobile: const MobileLoginScreen(),
+          mobile: MobileLoginScreen(),
           desktop: Row(
-            children: const [
+            children: [
               Expanded(
                 child: LoginScreenTopImage(),
               ),
               Expanded(
-                child: Center(
-                  child: SizedBox(
-                    width: 450,
-                    child: LoginForm(),
-                  ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    SizedBox(
+                      width: 450,
+                      child: LoginForm(),
+                    ),
+                    SizedBox(height: defaultPadding / 2),
+                    // SocalLogin() // اگر نیاز داری این رو بعداً اضافه کن
+                  ],
                 ),
               ),
             ],
@@ -40,29 +42,26 @@ class LoginScreen extends StatelessWidget {
 }
 
 class MobileLoginScreen extends StatelessWidget {
-  const MobileLoginScreen({
-    Key? key,
-  }) : super(key: key);
+  const MobileLoginScreen({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView( // اضافه‌شده برای جلوگیری از overflow
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: const <Widget>[
-          LoginScreenTopImage(),
-          Row(
-            children: [
-              Spacer(),
-              Expanded(
-                flex: 8,
-                child: LoginForm(),
-              ),
-              Spacer(),
-            ],
-          ),
-        ],
-      ),
+    return const Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: <Widget>[
+        LoginScreenTopImage(),
+        Row(
+          children: [
+            Spacer(),
+            Expanded(
+              flex: 8,
+              child: LoginForm(),
+            ),
+            Spacer(),
+          ],
+        ),
+        // SocalLogin() // اگر نیاز داری این رو بعداً اضافه کن
+      ],
     );
   }
 }

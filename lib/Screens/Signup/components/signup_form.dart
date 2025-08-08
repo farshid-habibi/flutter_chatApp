@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/Screens/Login/components/login_form.dart';
+import 'package:flutter_application_1/Screens/Login/login_screen.dart';
 import 'package:flutter_application_1/components/already_have_an_account_acheck.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../constants.dart';
-import '../../Login/login_screen.dart';
 
 class SignUpForm extends StatefulWidget {
   const SignUpForm({Key? key}) : super(key: key);
@@ -26,35 +26,42 @@ class _SignUpFormState extends State<SignUpForm> {
     setState(() => _isLoading = true);
 
     try {
-      await Supabase.instance.client
-          .from('users')
-          .insert({
-            'email': _email,
-            'password': _password,
-          });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Sign up successful!')),
+      final response = await Supabase.instance.client.auth.signUp(
+        email: _email,
+        password: _password,
       );
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const LoginForm()),
-      );
+      if (response.user != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sign up successful')),
+        );
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
+        );
+      } else {
+        _showError('Sign up failed');
+      }
+    } on AuthException catch (e) {
+      _showError(e.message);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Sign up failed: $e')),
-      );
+      _showError('Unexpected error occurred');
     } finally {
       setState(() => _isLoading = false);
     }
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Form(
       key: _formKey,
-      child: SingleChildScrollView(  
+      child: SingleChildScrollView(
         child: Column(
           children: [
             TextFormField(
@@ -109,7 +116,7 @@ class _SignUpFormState extends State<SignUpForm> {
               press: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const LoginForm()),
+                  MaterialPageRoute(builder: (context) => const LoginScreen()),
                 );
               },
             ),
