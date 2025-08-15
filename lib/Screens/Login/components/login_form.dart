@@ -16,6 +16,7 @@ class _LoginFormState extends State<LoginForm> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
+  bool _obscurePassword = true;
 
   Future<void> _signIn() async {
     if (!_formKey.currentState!.validate()) return;
@@ -82,13 +83,24 @@ class _LoginFormState extends State<LoginForm> {
               TextFormField(
                 controller: _passwordController,
                 textInputAction: TextInputAction.done,
-                obscureText: true,
+                obscureText: _obscurePassword,
                 cursorColor: kPrimaryColor,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   hintText: "Your password",
-                  prefixIcon: Padding(
+                  prefixIcon: const Padding(
                     padding: EdgeInsets.all(defaultPadding),
                     child: Icon(Icons.lock),
+                  ),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                      color: kPrimaryColor,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _obscurePassword = !_obscurePassword;
+                      });
+                    },
                   ),
                 ),
                 validator: (value) =>

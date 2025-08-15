@@ -18,6 +18,7 @@ class _SignUpFormState extends State<SignUpForm> {
   String _email = '';
   String _password = '';
   bool _isLoading = false;
+  bool _obscurePassword = true;
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
@@ -63,7 +64,6 @@ class _SignUpFormState extends State<SignUpForm> {
       key: _formKey,
       child: SingleChildScrollView(
         child: Column(
-      
           children: [
             TextFormField(
               keyboardType: TextInputType.emailAddress,
@@ -87,13 +87,24 @@ class _SignUpFormState extends State<SignUpForm> {
             const SizedBox(height: defaultPadding),
             TextFormField(
               textInputAction: TextInputAction.done,
-              obscureText: true,
+              obscureText: _obscurePassword,
               cursorColor: kPrimaryColor,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 hintText: "Your password",
-                prefixIcon: Padding(
+                prefixIcon: const Padding(
                   padding: EdgeInsets.all(defaultPadding),
                   child: Icon(Icons.lock),
+                ),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                    color: kPrimaryColor,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _obscurePassword = !_obscurePassword;
+                    });
+                  },
                 ),
               ),
               validator: (value) {
