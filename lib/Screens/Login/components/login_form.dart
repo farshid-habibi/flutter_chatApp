@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_application_1/Screens/Auto/forgot_password_screen.dart'
+    show ForgotPasswordScreen;
+import 'package:flutter_application_1/Screens/Auto/reset_password_screen.dart';
 import 'package:flutter_application_1/constants.dart';
 import 'package:flutter_application_1/components/already_have_an_account_acheck.dart';
 import 'package:flutter_application_1/Screens/Signup/signup_screen.dart';
@@ -18,6 +21,25 @@ class _LoginFormState extends State<LoginForm> {
   bool _isLoading = false;
   bool _obscurePassword = true;
 
+  @override
+  void initState() {
+    super.initState();
+    _checkPasswordRecovery();
+  }
+
+  /// چک می‌کنه اگر کاربر از لینک ریکاوری وارد شده باشه
+  void _checkPasswordRecovery() {
+    Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+      if (data.event == AuthChangeEvent.passwordRecovery) {
+        // مستقیم بره صفحه تغییر رمز
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const ResetPasswordScreen()),
+          (route) => false,
+        );
+      }
+    });
+  }
+
   Future<void> _signIn() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -34,10 +56,10 @@ class _LoginFormState extends State<LoginForm> {
       } else {
         _showError('Login failed');
       }
-    } on AuthException catch (e) {
+    } on AuthException catch (_) {
       _showError('Login failed');
-    } catch (e) {
-       _showError('Login failed');
+    } catch (_) {
+      _showError('Login failed');
     } finally {
       setState(() => _isLoading = false);
     }
@@ -56,14 +78,15 @@ class _LoginFormState extends State<LoginForm> {
       child: SingleChildScrollView(
         child: Container(
           padding: const EdgeInsets.all(defaultPadding),
-          decoration: BoxDecoration(
-            color: Colors.white, 
+          decoration: const BoxDecoration(
+            color: Colors.white,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 40),
+              // ایمیل
               TextFormField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
@@ -80,6 +103,7 @@ class _LoginFormState extends State<LoginForm> {
                     value!.isEmpty ? 'Please enter your email' : null,
               ),
               const SizedBox(height: defaultPadding),
+              // رمز عبور
               TextFormField(
                 controller: _passwordController,
                 textInputAction: TextInputAction.done,
@@ -93,7 +117,9 @@ class _LoginFormState extends State<LoginForm> {
                   ),
                   suffixIcon: IconButton(
                     icon: Icon(
-                      _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                      _obscurePassword
+                          ? Icons.visibility_off
+                          : Icons.visibility,
                       color: kPrimaryColor,
                     ),
                     onPressed: () {
@@ -107,13 +133,31 @@ class _LoginFormState extends State<LoginForm> {
                     value!.isEmpty ? 'Please enter your password' : null,
               ),
               const SizedBox(height: defaultPadding),
+              // دکمه لاگین
               _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : ElevatedButton(
                       onPressed: _signIn,
                       child: const Text("LOGIN"),
                     ),
+              const SizedBox(height: defaultPadding / 2),
+              // 🔹 لینک فراموشی رمز
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ForgotPasswordScreen(),
+                      ),
+                    );
+                  },
+                  child: const Text("فراموشی رمز؟"),
+                ),
+              ),
               const SizedBox(height: defaultPadding),
+              // لینک رفتن به ثبت‌نام
               AlreadyHaveAnAccountCheck(
                 press: () {
                   Navigator.push(
