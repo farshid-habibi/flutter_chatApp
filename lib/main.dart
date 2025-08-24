@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_application_1/Screens/Chat/chat_page.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_application_1/Screens/Auto/reset_password_screen.dart';
 import 'package:flutter_application_1/constants.dart';
@@ -92,7 +93,7 @@ class _MyAppState extends State<MyApp> {
       routes: {
         '/splash': (context) => const SplashScreen(),
         '/welcome': (context) => const WelcomeScreen(),
-        '/dashboard': (context) => const DashboardScreen(),
+        '/dashboard': (context) => const ChatPage(roomId: '1df115cd-2beb-4e72-b4e3-9f82a1be78eb',),
         '/login': (context) => const LoginScreen(),
         '/reset-password': (context) => const ResetPasswordScreen(),
       },
