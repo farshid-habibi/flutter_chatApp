@@ -27,11 +27,11 @@ class _LoginFormState extends State<LoginForm> {
     _checkPasswordRecovery();
   }
 
-  /// چک می‌کنه اگر کاربر از لینک ریکاوری وارد شده باشه
+  /// Check if user comes from a password recovery link
   void _checkPasswordRecovery() {
     Supabase.instance.client.auth.onAuthStateChange.listen((data) {
       if (data.event == AuthChangeEvent.passwordRecovery) {
-        // مستقیم بره صفحه تغییر رمز
+        // Go directly to ResetPasswordScreen
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (_) => const ResetPasswordScreen()),
           (route) => false,
@@ -54,12 +54,12 @@ class _LoginFormState extends State<LoginForm> {
       if (response.user != null) {
         Navigator.pushReplacementNamed(context, '/dashboard');
       } else {
-        _showError('Login failed');
+        _showError('Login failed. Please check your credentials.');
       }
     } on AuthException catch (_) {
-      _showError('Login failed');
+      _showError('Login failed. Please check your credentials.');
     } catch (_) {
-      _showError('Login failed');
+      _showError('Login failed. Please try again.');
     } finally {
       setState(() => _isLoading = false);
     }
@@ -86,14 +86,14 @@ class _LoginFormState extends State<LoginForm> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 40),
-              // ایمیل
+              // Email field
               TextFormField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
                 textInputAction: TextInputAction.next,
                 cursorColor: kPrimaryColor,
                 decoration: const InputDecoration(
-                  hintText: "Your email",
+                  hintText: "Email",
                   prefixIcon: Padding(
                     padding: EdgeInsets.all(defaultPadding),
                     child: Icon(Icons.person),
@@ -103,14 +103,14 @@ class _LoginFormState extends State<LoginForm> {
                     value!.isEmpty ? 'Please enter your email' : null,
               ),
               const SizedBox(height: defaultPadding),
-              // رمز عبور
+              // Password field
               TextFormField(
                 controller: _passwordController,
                 textInputAction: TextInputAction.done,
                 obscureText: _obscurePassword,
                 cursorColor: kPrimaryColor,
                 decoration: InputDecoration(
-                  hintText: "Your password",
+                  hintText: "Password",
                   prefixIcon: const Padding(
                     padding: EdgeInsets.all(defaultPadding),
                     child: Icon(Icons.lock),
@@ -133,7 +133,7 @@ class _LoginFormState extends State<LoginForm> {
                     value!.isEmpty ? 'Please enter your password' : null,
               ),
               const SizedBox(height: defaultPadding),
-              // دکمه لاگین
+              // Login button
               _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : ElevatedButton(
@@ -141,9 +141,9 @@ class _LoginFormState extends State<LoginForm> {
                       child: const Text("LOGIN"),
                     ),
               const SizedBox(height: defaultPadding / 2),
-              // 🔹 لینک فراموشی رمز
+              // Forgot password link
               Align(
-                alignment: Alignment.centerRight,
+                alignment: Alignment.center,
                 child: TextButton(
                   onPressed: () {
                     Navigator.push(
@@ -153,12 +153,13 @@ class _LoginFormState extends State<LoginForm> {
                       ),
                     );
                   },
-                  child: const Text("فراموشی رمز؟"),
+                  child: const Text("Forgot password?"),
                 ),
               ),
               const SizedBox(height: defaultPadding),
-              // لینک رفتن به ثبت‌نام
+              // Sign up link
               AlreadyHaveAnAccountCheck(
+                login: true,
                 press: () {
                   Navigator.push(
                     context,

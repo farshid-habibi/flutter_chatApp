@@ -29,12 +29,16 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   late final StreamSubscription<AuthState> _authSub;
+  String _initialRoute = '/welcome';
 
   @override
   void initState() {
     super.initState();
 
-
+    final session = Supabase.instance.client.auth.currentSession;
+    if (session != null && session.user != null) {
+      _initialRoute = '/dashboard';
+    }
 
     _authSub = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
       if (data.event == AuthChangeEvent.passwordRecovery) {
@@ -84,7 +88,7 @@ class _MyAppState extends State<MyApp> {
           ),
         ),
       ),
-      initialRoute: '/welcome',
+      initialRoute: _initialRoute,
       routes: {
         '/splash': (context) => const SplashScreen(),
         '/welcome': (context) => const WelcomeScreen(),

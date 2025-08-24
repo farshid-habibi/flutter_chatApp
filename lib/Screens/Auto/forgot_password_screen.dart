@@ -26,7 +26,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('لینک بازیابی به ایمیل ارسال شد')),
+        const SnackBar(content: Text('Password reset link has been sent to your email.')),
       );
       Navigator.of(context).pop();
     } on AuthException catch (e) {
@@ -44,18 +44,20 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       body: Background(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(defaultPadding),
-            child: Responsive(
-              mobile: _buildForm(),
-              desktop: Row(
-                children: [
-                  const Expanded(child: SizedBox()),
-                  Expanded(
-                    child: Center(
-                      child: SizedBox(width: 450, child: _buildForm()),
+            child: Padding(
+              padding: const EdgeInsets.all(defaultPadding),
+              child: Responsive(
+                mobile: _buildForm(),
+                desktop: Row(
+                  children: [
+                    const Expanded(child: SizedBox()),
+                    Expanded(
+                      child: Center(
+                        child: SizedBox(width: 450, child: _buildForm()),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -67,31 +69,35 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   Widget _buildForm() {
     return Form(
       key: _formKey,
-      child: Column(
-        children: [
-          const Text(
-            "بازیابی رمز عبور",
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: defaultPadding * 2),
-          TextFormField(
-            controller: _emailCtrl,
-            keyboardType: TextInputType.emailAddress,
-            decoration: const InputDecoration(
-              hintText: "ایمیل خود را وارد کنید",
-              prefixIcon: Icon(Icons.email),
+      child: Padding(
+        padding: const EdgeInsets.all(defaultPadding), // اینجا هم padding اضافه شد
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "Reset Password",
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
-            validator: (v) =>
-                (v == null || v.isEmpty) ? 'ایمیل الزامی است' : null,
-          ),
-          const SizedBox(height: defaultPadding),
-          ElevatedButton(
-            onPressed: _loading ? null : _sendResetEmail,
-            child: _loading
-                ? const CircularProgressIndicator(color: Colors.white)
-                : const Text("ارسال لینک"),
-          ),
-        ],
+            const SizedBox(height: defaultPadding * 2),
+            TextFormField(
+              controller: _emailCtrl,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(
+                hintText: "Enter your email",
+                prefixIcon: Icon(Icons.email),
+              ),
+              validator: (v) =>
+                  (v == null || v.isEmpty) ? 'Email is required' : null,
+            ),
+            const SizedBox(height: defaultPadding),
+            ElevatedButton(
+              onPressed: _loading ? null : _sendResetEmail,
+              child: _loading
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : const Text("Send Reset Link"),
+            ),
+          ],
+        ),
       ),
     );
   }

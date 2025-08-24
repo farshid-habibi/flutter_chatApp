@@ -26,7 +26,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("رمز عبور تغییر کرد")),
+        const SnackBar(content: Text("Password updated successfully")),
       );
       Navigator.pushReplacementNamed(context, '/login');
     } on AuthException catch (e) {
@@ -44,18 +44,20 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       body: Background(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(defaultPadding),
-            child: Responsive(
-              mobile: _buildForm(),
-              desktop: Row(
-                children: [
-                  const Expanded(child: SizedBox()),
-                  Expanded(
-                    child: Center(
-                      child: SizedBox(width: 450, child: _buildForm()),
+            child: Padding(
+              padding: const EdgeInsets.all(defaultPadding),
+              child: Responsive(
+                mobile: _buildForm(),
+                desktop: Row(
+                  children: [
+                    const Expanded(child: SizedBox()),
+                    Expanded(
+                      child: Center(
+                        child: SizedBox(width: 450, child: _buildForm()),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -67,42 +69,45 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   Widget _buildForm() {
     return Form(
       key: _formKey,
-      child: Column(
-        children: [
-          const Text(
-            "تعیین رمز جدید",
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: defaultPadding * 2),
-          TextFormField(
-            controller: _passCtrl,
-            obscureText: true,
-            decoration: const InputDecoration(
-              hintText: "رمز جدید",
-              prefixIcon: Icon(Icons.lock),
+      child: Padding(
+        padding: const EdgeInsets.all(defaultPadding),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "Reset Password",
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
-            validator: (v) =>
-                (v == null || v.length < 6) ? 'حداقل ۶ کاراکتر' : null,
-          ),
-          const SizedBox(height: defaultPadding),
-          TextFormField(
-            controller: _confirmCtrl,
-            obscureText: true,
-            decoration: const InputDecoration(
-              hintText: "تکرار رمز جدید",
-              prefixIcon: Icon(Icons.lock_outline),
+            const SizedBox(height: defaultPadding * 2),
+            TextFormField(
+              controller: _passCtrl,
+              obscureText: true,
+              decoration: const InputDecoration(
+                hintText: "New password",
+                prefixIcon: Icon(Icons.lock),
+              ),
+              validator: (v) =>
+                  (v == null || v.length < 6) ? 'Minimum 6 characters' : null,
             ),
-            validator: (v) =>
-                (v != _passCtrl.text) ? 'رمزها یکسان نیستند' : null,
-          ),
-          const SizedBox(height: defaultPadding),
-          ElevatedButton(
-            onPressed: _loading ? null : _updatePassword,
-            child: _loading
-                ? const CircularProgressIndicator(color: Colors.white)
-                : const Text("ذخیره رمز"),
-          ),
-        ],
+            const SizedBox(height: defaultPadding),
+            TextFormField(
+              controller: _confirmCtrl,
+              obscureText: true,
+              decoration: const InputDecoration(
+                hintText: "Confirm new password",
+                prefixIcon: Icon(Icons.lock_outline),
+              ),
+              validator: (v) => (v != _passCtrl.text) ? 'Passwords do not match' : null,
+            ),
+            const SizedBox(height: defaultPadding),
+            ElevatedButton(
+              onPressed: _loading ? null : _updatePassword,
+              child: _loading
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : const Text("Save Password"),
+            ),
+          ],
+        ),
       ),
     );
   }
