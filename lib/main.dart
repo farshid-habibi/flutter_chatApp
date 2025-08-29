@@ -92,7 +92,8 @@ class _MyAppState extends State<MyApp> {
       routes: {
         '/splash': (context) => const SplashScreen(),
         '/welcome': (context) => const WelcomeScreen(),
-        '/dashboard': (context) => const ChatPage(roomId: '1df115cd-2beb-4e72-b4e3-9f82a1be78eb',),
+        // '/dashboard': (context) => const ChatPage(roomId: '1df115cd-2beb-4e72-b4e3-9f82a1be78eb',),
+       '/dashboard': (context) => const DashboardScreen(),
         '/login': (context) => const LoginScreen(),
         '/reset-password': (context) => const ResetPasswordScreen(),
       },
