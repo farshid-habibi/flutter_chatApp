@@ -80,7 +80,6 @@ class _MyAppState extends State<MyApp> {
           fillColor: kPrimaryLightColor,
           prefixIconColor: kPrimaryColor,
           contentPadding: EdgeInsets.symmetric(
-            horizontal: defaultPadding,
             vertical: defaultPadding,
           ),
           border: OutlineInputBorder(
