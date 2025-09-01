@@ -19,41 +19,45 @@ class _SignUpFormState extends State<SignUpForm> {
   String _password = '';
   bool _isLoading = false;
   bool _obscurePassword = true;
+Future<void> _submit() async {
+  if (!_formKey.currentState!.validate()) return;
+  _formKey.currentState!.save();
 
-  Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
-    _formKey.currentState!.save();
+  setState(() => _isLoading = true);
 
-    setState(() => _isLoading = true);
+  try {
+    final response = await Supabase.instance.client.auth.signUp(
+      email: _email,
+      password: _password,
+      data: {
+        'username': _username,
+      },
+    );
 
-    try {
-      final response = await Supabase.instance.client.auth.signUp(
-        email: _email,
-        password: _password,
-        data: {
-          'username': _username, 
-        },
+    if (response.user != null || response.session != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Sign up successful! Please confirm your email later.',
+          ),
+        ),
       );
-
-      if (response.user != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Sign up successful')),
-        );
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const LoginScreen()),
-        );
-      } else {
-        _showError('Sign up failed');
-      }
-    } on AuthException catch (e) {
-      _showError(e.message);
-    } catch (e) {
-      _showError('Sign up failed');
-    } finally {
-      setState(() => _isLoading = false);
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+      );
+    } else {
+      _showError('Sign up failed. Please try again.');
     }
+  } on AuthException catch (e) {
+    _showError(e.message);
+  } catch (e) {
+    _showError('Unexpected error: $e');
+  } finally {
+    setState(() => _isLoading = false);
   }
+}
+
 
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -68,7 +72,7 @@ class _SignUpFormState extends State<SignUpForm> {
       child: SingleChildScrollView(
         child: Column(
           children: [
-            // 👇 فیلد نام کاربری
+            //  فیلد نام کاربری
             TextFormField(
               textInputAction: TextInputAction.next,
               cursorColor: kPrimaryColor,
@@ -89,7 +93,7 @@ class _SignUpFormState extends State<SignUpForm> {
             ),
             const SizedBox(height: defaultPadding),
 
-            // 👇 فیلد ایمیل
+            //  فیلد ایمیل
             TextFormField(
               keyboardType: TextInputType.emailAddress,
               textInputAction: TextInputAction.next,
@@ -111,7 +115,7 @@ class _SignUpFormState extends State<SignUpForm> {
             ),
             const SizedBox(height: defaultPadding),
 
-            // 👇 فیلد پسورد
+            //  فیلد پسورد
             TextFormField(
               textInputAction: TextInputAction.done,
               obscureText: _obscurePassword,
