@@ -36,7 +36,6 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  // اگر اپ به حالت background رفت و دوباره برگشت، استریم مجدد برقرار شود
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
