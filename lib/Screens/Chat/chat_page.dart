@@ -21,7 +21,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _currentUserId = _supabase.auth.currentUser?.id ?? '';
-    print("📌 Current User ID in ChatPage: $_currentUserId");
+    // print("📌 Current User ID in ChatPage: $_currentUserId");
 
     _messageStream = _supabase
   .from('messages')
@@ -54,13 +54,13 @@ Future<void> _ensureMember() async {
       await _supabase.from('room_members').insert({
         'room_id': widget.roomId,
         'user_id': _currentUserId,
-      }).select(); // select() جایگزین execute شده
-      print("✅ Current user added to room_members");
+      }).select();
+      // print("✅ Current user added to room_members");
     } else {
-      print("✅ Current user already in room_members");
+      // print("✅ Current user already in room_members");
     }
   } catch (e) {
-    print("❌ Error checking/inserting room_member: $e");
+    // print("❌ Error checking/inserting room_member: $e");
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Cannot join chat room')),
     );
@@ -72,17 +72,17 @@ Future<void> _sendMessage() async {
   if (text.isEmpty || _currentUserId.isEmpty) return;
 
   try {
-    await _ensureMember(); // حتما قبل از ارسال پیام اجرا شود
+    await _ensureMember();
 
     await _supabase.from('messages').insert({
       'room_id': widget.roomId,
       'sender_id': _currentUserId,
       'content': text,
-    }).select(); // select() جایگزین execute
+    }).select(); 
 
     print("✅ Message inserted");
   } catch (e) {
-    print("❌ Error inserting message: $e");
+    // print("❌ Error inserting message: $e");
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Failed to send message')),
     );
