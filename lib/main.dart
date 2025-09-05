@@ -16,11 +16,21 @@ void main() async {
     url: 'https://ctqagcifclyvlntfacnc.supabase.co',
     anonKey:
         'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN0cWFnY2lmY2x5dmxudGZhY25jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM5NTk5NzcsImV4cCI6MjA2OTUzNTk3N30.HAsOI0qlt02OZqv3H2Y18cR8_M_5Vefzgp5kydYQGWM',
-    authOptions: const FlutterAuthClientOptions(
-    autoRefreshToken: true,
-    
+   authOptions: const FlutterAuthClientOptions(
+    autoRefreshToken: true
   ),
+  
   );
+
+  // Listener برای تغییرات session و token refresh
+  Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+    final event = data.event;
+    final session = data.session;
+    print('📡 Auth event: $event');
+    if (session != null) {
+      print('📌 New access token: ${session.accessToken}');
+    }
+  });
 
   runApp(const MyApp());
 }
@@ -40,11 +50,13 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
 
+    // بررسی session فعلی
     final session = Supabase.instance.client.auth.currentSession;
     if (session != null && session.user != null) {
       _initialRoute = '/dashboard';
     }
 
+    // Listener برای رویدادهای خاص auth
     _authSub = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
       if (data.event == AuthChangeEvent.passwordRecovery) {
         Navigator.of(context).pushAndRemoveUntil(
@@ -96,8 +108,7 @@ class _MyAppState extends State<MyApp> {
       routes: {
         '/splash': (context) => const SplashScreen(),
         '/welcome': (context) => const WelcomeScreen(),
-        // '/dashboard': (context) => const ChatPage(roomId: '1df115cd-2beb-4e72-b4e3-9f82a1be78eb',),
-       '/dashboard': (context) => const DashboardScreen(),
+        '/dashboard': (context) => const DashboardScreen(),
         '/login': (context) => const LoginScreen(),
         '/reset-password': (context) => const ResetPasswordScreen(),
       },
