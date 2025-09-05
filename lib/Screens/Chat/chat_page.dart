@@ -21,11 +21,15 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _currentUserId = _supabase.auth.currentUser?.id ?? '';
+    print("📌 Current User ID in ChatPage: $_currentUserId");
+
     _messageStream = _supabase
-        .from('messages')
-        .stream(primaryKey: ['id'])
-        .eq('room_id', widget.roomId)
-        .order('created_at', ascending: true);
+  .from('messages')
+  .stream(primaryKey: ['id'])
+  .eq('room_id', widget.roomId)
+  .order('created_at', ascending: true)
+  .map((data) => data.cast<Map<String, dynamic>>());
+
   }
 
   @override
@@ -36,24 +40,58 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      setState(() {}); // rebuild widget to refresh stream
-    }
-  }
+Future<void> _ensureMember() async {
+  try {
+    final memberCheck = await _supabase
+        .from('room_members')
+        .select()
+        .eq('room_id', widget.roomId)
+        .eq('user_id', _currentUserId)
+        .limit(1);
 
-  Future<void> _sendMessage() async {
-    final text = _controller.text.trim();
-    if (text.isEmpty || _currentUserId.isEmpty) return;
+    if (memberCheck.isEmpty) {
+      print("! Current user not in room_members, adding...");
+      await _supabase.from('room_members').insert({
+        'room_id': widget.roomId,
+        'user_id': _currentUserId,
+      }).select(); // select() جایگزین execute شده
+      print("✅ Current user added to room_members");
+    } else {
+      print("✅ Current user already in room_members");
+    }
+  } catch (e) {
+    print("❌ Error checking/inserting room_member: $e");
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Cannot join chat room')),
+    );
+  }
+}
+
+Future<void> _sendMessage() async {
+  final text = _controller.text.trim();
+  if (text.isEmpty || _currentUserId.isEmpty) return;
+
+  try {
+    await _ensureMember(); // حتما قبل از ارسال پیام اجرا شود
 
     await _supabase.from('messages').insert({
       'room_id': widget.roomId,
-      'user_id': _currentUserId,
+      'sender_id': _currentUserId,
       'content': text,
-    });
-    _controller.clear();
+    }).select(); // select() جایگزین execute
+
+    print("✅ Message inserted");
+  } catch (e) {
+    print("❌ Error inserting message: $e");
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Failed to send message')),
+    );
   }
+
+  _controller.clear();
+  _scrollToBottom();
+}
+
 
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -70,15 +108,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('اتاق چت'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () => _supabase.auth.signOut(),
-          )
-        ],
-      ),
+      appBar: AppBar(title: const Text('Chat Room')),
       body: Column(
         children: [
           Expanded(
@@ -86,7 +116,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
               stream: _messageStream,
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
-                  return Center(child: Text('خطا: ${snapshot.error}'));
+                  return Center(child: Text('Error: ${snapshot.error}'));
                 }
                 if (!snapshot.hasData) {
                   return const Center(child: CircularProgressIndicator());
@@ -101,7 +131,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                   itemCount: messages.length,
                   itemBuilder: (context, index) {
                     final msg = messages[index];
-                    final isMine = msg['user_id'] == _currentUserId;
+                    final isMine = msg['sender_id'] == _currentUserId;
                     return Align(
                       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
                       child: Container(
@@ -109,15 +139,11 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                         decoration: BoxDecoration(
                           color: isMine ? Colors.blueAccent : Colors.grey.shade300,
-                          borderRadius: BorderRadius.only(
-                            topLeft: const Radius.circular(14),
-                            topRight: const Radius.circular(14),
-                            bottomLeft: isMine ? const Radius.circular(14) : Radius.zero,
-                            bottomRight: isMine ? Radius.zero : const Radius.circular(14),
-                          ),
+                          borderRadius: BorderRadius.circular(14),
                         ),
                         child: Column(
-                          crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                          crossAxisAlignment:
+                              isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                           children: [
                             Text(
                               msg['content'] ?? '',
@@ -128,7 +154,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              msg['created_at'].toString().substring(11, 16),
+                              msg['created_at']?.toString().substring(11, 16) ?? '',
                               style: TextStyle(
                                 fontSize: 11,
                                 color: isMine ? Colors.white70 : Colors.black54,
@@ -152,7 +178,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                     child: TextField(
                       controller: _controller,
                       decoration: InputDecoration(
-                        hintText: "پیام خود را بنویسید...",
+                        hintText: "Write a message...",
                         filled: true,
                         fillColor: Colors.grey.shade100,
                         contentPadding:

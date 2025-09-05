@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_application_1/Screens/Chat/chat_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_application_1/Screens/Welcome/welcome_screen.dart';
@@ -14,16 +15,15 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   final SupabaseClient supabase = Supabase.instance.client;
 
-  List<Map<String, dynamic>> _foundUsers = []; // List of found users
+  List<Map<String, dynamic>> _foundUsers = [];
   String? _error;
 
   @override
   void initState() {
     super.initState();
-    _loadSavedUsers(); // Load saved users
+    _loadSavedUsers();
   }
 
-  // Load saved list from SharedPreferences
   Future<void> _loadSavedUsers() async {
     final prefs = await SharedPreferences.getInstance();
     final String? saved = prefs.getString('foundUsers');
@@ -34,54 +34,41 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  // Save list to SharedPreferences
   Future<void> _saveUsers() async {
     final prefs = await SharedPreferences.getInstance();
     prefs.setString('foundUsers', jsonEncode(_foundUsers));
   }
 
-  // Search user by username and add to the list
   Future<void> _searchUser(String username) async {
-    if (username.trim().isEmpty) {
-      setState(() {
-        _error = 'Please enter a username';
-      });
-      return;
-    }
-
     try {
       final response = await supabase
           .from('profiles')
-          .select('id, username, email') // Only id, username, email
+          .select('id, username, email')
           .eq('username', username)
           .maybeSingle();
 
-      setState(() {
-        if (response == null) {
-          _error = 'User not found';
-        } else {
-          _error = null;
-          final userMap = {
-            'id': response['id'],
-            'username': response['username'],
-            'email': response['email'],
-          };
+      if (response != null) {
+        final userMap = {
+          'id': response['id'],
+          'username': response['username'],
+          'email': response['email'],
+        };
 
-          // Add to list only if not already added
-          if (!_foundUsers.any((u) => u['id'] == userMap['id'])) {
+        if (!_foundUsers.any((u) => u['id'] == userMap['id'])) {
+          setState(() {
             _foundUsers.add(userMap);
-            _saveUsers(); // Save permanently
-          }
+          });
+          _saveUsers();
         }
-      });
+      } else {
+        setState(() => _error = 'User not found');
+      }
     } catch (e) {
-      setState(() {
-        _error = 'Error: $e';
-      });
+      setState(() => _error = 'Error: $e');
+      print("❌ Error searching user: $e");
     }
   }
 
-  // Show dialog to enter username
   void _showSearchDialog() {
     final TextEditingController _controller = TextEditingController();
 
@@ -113,6 +100,63 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+Future<String> _getOrCreateRoom(String otherUserId) async {
+  final currentUserId = supabase.auth.currentUser!.id;
+  print("📌 Current User ID: $currentUserId, Other User ID: $otherUserId");
+
+  try {
+    // بررسی وجود روم
+    final existingRoom = await supabase
+        .from('rooms')
+        .select('id')
+        .or(
+          'name.eq.private_${currentUserId}_$otherUserId,name.eq.private_${otherUserId}_$currentUserId'
+        )
+        .maybeSingle();
+
+    if (existingRoom != null) {
+      print("ℹ️ Existing room found: ${existingRoom['id']}");
+      return existingRoom['id'];
+    }
+
+    // ایجاد روم جدید
+    final newRoom = await supabase
+        .from('rooms')
+        .insert({
+          'name': 'private_${currentUserId}_$otherUserId',
+          'creator_id': currentUserId,
+        })
+        .select()
+        .single();
+
+    final roomId = newRoom['id'];
+    print("✅ New room created: $roomId");
+
+    // اضافه کردن اعضا به room_members
+    print("🔹 Inserting members into room_members...");
+    final insertedMembers = await supabase.from('room_members').insert([
+      {'room_id': roomId, 'user_id': currentUserId},
+      {'room_id': roomId, 'user_id': otherUserId},
+    ]).select();
+
+    print("🔹 insertedMembers response: $insertedMembers");
+
+    if (insertedMembers == null || (insertedMembers as List).isEmpty) {
+      print("❌ Failed to add members. Deleting room...");
+      await supabase.from('rooms').delete().eq('id', roomId);
+      throw Exception('Failed to add members to room');
+    }
+
+    print("✅ Members successfully added to room: $roomId");
+    return roomId;
+  } catch (e, stack) {
+    print("❌ Error in _getOrCreateRoom: $e");
+    print(stack);
+    rethrow;
+  }
+}
+
+
   @override
   Widget build(BuildContext context) {
     final user = supabase.auth.currentUser;
@@ -125,6 +169,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             icon: const Icon(Icons.logout),
             onPressed: () async {
               await supabase.auth.signOut();
+              if (!mounted) return;
               Navigator.pushAndRemoveUntil(
                 context,
                 MaterialPageRoute(
@@ -138,7 +183,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
       body: Column(
         children: [
-          // Display current user
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Text(
@@ -146,19 +190,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
               style: const TextStyle(fontSize: 18),
             ),
           ),
-          // Display error message
           if (_error != null)
             Padding(
               padding: const EdgeInsets.all(8.0),
               child: Text(_error!, style: const TextStyle(color: Colors.red)),
             ),
           const Divider(),
-          // Display list of found users
           Expanded(
             child: _foundUsers.isEmpty
-                ? const Center(
-                    child: Text("No users found. Search to add users."),
-                  )
+                ? const Center(child: Text("No users found. Search to add users."))
                 : ListView.builder(
                     itemCount: _foundUsers.length,
                     itemBuilder: (context, index) {
@@ -167,7 +207,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         leading: const Icon(Icons.person),
                         title: Text(u['username'] ?? 'No username'),
                         subtitle: Text(u['email'] ?? 'No email'),
-                        // trailing: Text(u['id'] ?? ''),
+                        onTap: () async {
+                          try {
+                            final roomId = await _getOrCreateRoom(u['id']);
+                            if (!mounted) return;
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => ChatPage(roomId: roomId),
+                              ),
+                            );
+                          } catch (e) {
+                            print("❌ Failed to open chat: $e");
+                          }
+                        },
                       );
                     },
                   ),

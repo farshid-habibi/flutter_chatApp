@@ -16,6 +16,10 @@ void main() async {
     url: 'https://ctqagcifclyvlntfacnc.supabase.co',
     anonKey:
         'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN0cWFnY2lmY2x5dmxudGZhY25jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM5NTk5NzcsImV4cCI6MjA2OTUzNTk3N30.HAsOI0qlt02OZqv3H2Y18cR8_M_5Vefzgp5kydYQGWM',
+    authOptions: const FlutterAuthClientOptions(
+    autoRefreshToken: true,
+    
+  ),
   );
 
   runApp(const MyApp());
