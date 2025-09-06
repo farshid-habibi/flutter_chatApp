@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/Screens/Chat/chat_page.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path/path.dart' as path;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_application_1/Screens/Welcome/welcome_screen.dart';
@@ -25,6 +28,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.initState();
     _checkAndRefreshSession();
     _loadSavedUsers();
+    _loadCurrentUserProfile();
   }
 
   Future<void> _checkAndRefreshSession() async {
@@ -97,6 +101,67 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
     });
   }
+  bool _isPickingAvatar = false;
+ Future<void> _pickAndUploadAvatar() async {
+  if (_isPickingAvatar) return; // جلوگیری از چندبار همزمان
+  _isPickingAvatar = true;
+  print("🔹 Start picking avatar");
+  try {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+
+    if (pickedFile == null) {
+      print("⚠️ No image picked");
+      return;
+    }
+
+    print("📸 Image picked: ${pickedFile.path}");
+
+    final user = supabase.auth.currentUser;
+    if (user == null) {
+      print("❌ No logged-in user");
+      return;
+    }
+
+    final fileExt = path.extension(pickedFile.path);
+    final fileName = "${user.id}$fileExt";
+    final filePath = "avatars/$fileName";
+
+    print("📂 Uploading to path: $filePath");
+
+    final uploadResponse = await supabase.storage.from('avatars').upload(
+      filePath,
+      File(pickedFile.path),
+      fileOptions: const FileOptions(upsert: true),
+    );
+
+    print("✅ Upload response: $uploadResponse");
+
+    final publicUrl = supabase.storage.from('avatars').getPublicUrl(filePath);
+    print("🌐 Public URL: $publicUrl");
+
+    final updateResponse = await supabase.from('profiles').update({
+      'avatar_url': publicUrl,
+    }).eq('id', user.id);
+
+    print("✏️ Profile update response: $updateResponse");
+
+    setState(() {
+      user.userMetadata?['avatar_url'] = publicUrl;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Profile picture updated!")),
+    );
+  } catch (e, st) {
+    print("❌ Error uploading avatar: $e");
+    print("Stack trace: $st");
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("Failed to update avatar: $e")),
+    );
+  }
+}
+
 
   Future<void> _openChat(String otherUserId) async {
     try {
@@ -140,6 +205,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
       print("❌ Failed to open chat: $e");
     }
   }
+  Future<void> _loadCurrentUserProfile() async {
+  final userId = supabase.auth.currentUser?.id;
+  if (userId == null) return;
+
+  final profile = await supabase
+      .from('profiles')
+      .select('username, avatar_url')
+      .eq('id', userId)
+      .single();
+
+  if (profile != null && mounted) {
+    setState(() {
+      supabase.auth.currentUser?.userMetadata?['username'] = profile['username'];
+      supabase.auth.currentUser?.userMetadata?['avatar_url'] = profile['avatar_url'];
+    });
+  }
+}
+
 
   @override
   void dispose() {
@@ -163,41 +246,85 @@ class _DashboardScreenState extends State<DashboardScreen> {
         title: const Text("ChatterBox"),
         backgroundColor: Colors.blueAccent,
       ),
-      drawer: Drawer(
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            UserAccountsDrawerHeader(
-              accountName: Text(user!.userMetadata!['username'] ?? 'User'),
-              accountEmail: Text(user.email ?? ''),
-              currentAccountPicture: CircleAvatar(
-                backgroundColor: Colors.white,
-                child: Text(
-                  (user.userMetadata!['username'] ?? 'U')[0].toUpperCase(),
-                  style: const TextStyle(fontSize: 24, color: Colors.black),
-                ),
-              ),
-              decoration: const BoxDecoration(color: Colors.blueAccent),
-            ),
-            ListTile(
-              leading: const Icon(Icons.logout, color: Colors.blueAccent),
-              title: const Text(
-                'Logout',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              onTap: () async {
-                await supabase.auth.signOut();
-                if (!mounted) return;
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (_) => const WelcomeScreen()),
-                  (route) => false,
-                );
-              },
-            ),
-          ],
-        ),
+    drawer: Drawer(
+  child: Column(
+    children: [
+      UserAccountsDrawerHeader(
+  decoration: const BoxDecoration(color: Colors.white),
+  accountName: Text(
+    user!.userMetadata!['username'] ?? 'User',
+    style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+  ),
+  accountEmail: Text(
+    user.email ?? '',
+    style: const TextStyle(color: Colors.grey),
+  ),
+  currentAccountPicture: GestureDetector(
+    onTap: _pickAndUploadAvatar, // 📌 اینجا متد رو صدا می‌زنیم
+    child: CircleAvatar(
+      backgroundColor: Colors.grey.shade300,
+      backgroundImage: user.userMetadata?['avatar_url'] != null
+          ? NetworkImage(user.userMetadata!['avatar_url'])
+          : null,
+      child: user.userMetadata?['avatar_url'] == null
+          ? Text(
+              (user.userMetadata?['username'] ?? 'U')[0].toUpperCase(),
+              style: const TextStyle(fontSize: 24, color: Colors.black),
+            )
+          : null,
+    ),
+  ),
+),
+
+      // 📌 گزینه‌های شبیه تلگرام
+      ListTile(
+        leading: const Icon(Icons.group, color: Colors.blueAccent),
+        title: const Text("New Group"),
+        onTap: () {},
       ),
+      ListTile(
+        leading: const Icon(Icons.person, color: Colors.blueAccent),
+        title: const Text("Contacts"),
+        onTap: () {},
+      ),
+      ListTile(
+        leading: const Icon(Icons.call, color: Colors.blueAccent),
+        title: const Text("Calls"),
+        onTap: () {},
+      ),
+      ListTile(
+        leading: const Icon(Icons.bookmark, color: Colors.blueAccent),
+        title: const Text("Saved Messages"),
+        onTap: () {},
+      ),
+      ListTile(
+        leading: const Icon(Icons.settings, color: Colors.blueAccent),
+        title: const Text("Settings"),
+        onTap: () {},
+      ),
+      ListTile(
+        leading: const Icon(Icons.person_add, color: Colors.blueAccent),
+        title: const Text("Invite Friends"),
+        onTap: () {},
+      ),
+      const Divider(),
+      ListTile(
+        leading: const Icon(Icons.logout, color: Colors.red),
+        title: const Text("Logout"),
+        onTap: () async {
+          await supabase.auth.signOut();
+          if (!mounted) return;
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+            (route) => false,
+          );
+        },
+      ),
+    ],
+  ),
+),
+
       body: Column(
         children: [
           Padding(
