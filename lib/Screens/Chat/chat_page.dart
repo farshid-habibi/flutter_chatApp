@@ -1,11 +1,15 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'dart:io';
+import 'package:video_player/video_player.dart';
+import 'package:chewie/chewie.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:http/http.dart' as http;
 
 class ChatPage extends StatefulWidget {
-  final String roomId; // اینجا roomId رو همون userId فرض کردم
+  final String roomId;
   const ChatPage({super.key, required this.roomId});
 
   @override
@@ -41,9 +45,9 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
   Future<void> _loadUserName() async {
     try {
       final data = await _supabase
-          .from('users') // 👈 جدول کاربرانت
+          .from('users')
           .select('username')
-          .eq('id', widget.roomId) // 👈 فرض کردم roomId = userId
+          .eq('id', widget.roomId)
           .maybeSingle();
 
       setState(() {
@@ -97,6 +101,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
         'sender_id': _currentUserId,
         'content': text,
         'media_url': null,
+        'is_video': false,
       });
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -110,16 +115,18 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
 
   Future<void> _sendMedia() async {
     try {
-      final XFile? pickedFile =
-          await _picker.pickImage(source: ImageSource.gallery);
-
+      final XFile? pickedFile = await _picker.pickMedia();
       if (pickedFile == null) return;
 
       setState(() => _isUploading = true);
 
       final File file = File(pickedFile.path);
+      final fileExt = pickedFile.path.split('.').last;
+      final isVideo =
+          ['mp4', 'mov', 'avi', 'mkv'].contains(fileExt.toLowerCase());
+
       final fileName =
-          '${DateTime.now().millisecondsSinceEpoch}_${_currentUserId}.jpg';
+          '${DateTime.now().millisecondsSinceEpoch}_${_currentUserId}.$fileExt';
 
       await _supabase.storage.from('chat_media').upload(fileName, file);
 
@@ -132,6 +139,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
         'sender_id': _currentUserId,
         'content': '',
         'media_url': mediaUrl,
+        'is_video': isVideo,
       });
 
       _scrollToBottom();
@@ -143,6 +151,21 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
       );
     } finally {
       setState(() => _isUploading = false);
+    }
+  }
+
+  Future<void> _saveToDownloads(String url, String fileName) async {
+    try {
+      final response = await http.get(Uri.parse(url));
+      final bytes = response.bodyBytes;
+      final dir = await getApplicationDocumentsDirectory();
+      final file = File("${dir.path}/$fileName");
+      await file.writeAsBytes(bytes);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text("Saved to device folder")));
+    } catch (e) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text("Failed to save")));
     }
   }
 
@@ -188,8 +211,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                 }
 
                 final messages = snapshot.data!;
-                WidgetsBinding.instance
-                    .addPostFrameCallback((_) => _scrollToBottom());
+                WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
 
                 return ListView.builder(
                   controller: _scrollController,
@@ -198,19 +220,18 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                   itemBuilder: (context, index) {
                     final msg = messages[index];
                     final isMine = msg['sender_id'] == _currentUserId;
+                    final isVideo = msg['is_video'] == true;
 
                     return Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: isMine
-                          ? MainAxisAlignment.end
-                          : MainAxisAlignment.start,
+                      mainAxisAlignment:
+                          isMine ? MainAxisAlignment.end : MainAxisAlignment.start,
                       children: [
                         if (!isMine)
                           CircleAvatar(
                             radius: 16,
                             backgroundColor: Colors.grey.shade400,
-                            child: const Icon(Icons.person,
-                                size: 16, color: Colors.white),
+                            child: const Icon(Icons.person, size: 16, color: Colors.white),
                           ),
                         const SizedBox(width: 6),
                         Flexible(
@@ -218,72 +239,102 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                             margin: const EdgeInsets.symmetric(vertical: 4),
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
-                              color: isMine
-                                  ? Colors.blueAccent
-                                  : Colors.grey.shade200,
+                              color: isMine ? const Color(0xFF0088cc) : Colors.white,
                               borderRadius: BorderRadius.only(
                                 topLeft: const Radius.circular(16),
                                 topRight: const Radius.circular(16),
-                                bottomLeft: isMine
-                                    ? const Radius.circular(16)
-                                    : const Radius.circular(0),
-                                bottomRight: isMine
-                                    ? const Radius.circular(0)
-                                    : const Radius.circular(16),
+                                bottomLeft: isMine ? const Radius.circular(16) : const Radius.circular(0),
+                                bottomRight: isMine ? const Radius.circular(0) : const Radius.circular(16),
                               ),
+                              boxShadow: const [
+                                BoxShadow(color: Colors.black12, blurRadius: 2, offset: Offset(1, 1))
+                              ],
                             ),
                             child: Column(
-                              crossAxisAlignment: isMine
-                                  ? CrossAxisAlignment.end
-                                  : CrossAxisAlignment.start,
+                              crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                               children: [
-                                if (msg['content'] != null &&
-                                    msg['content'].toString().isNotEmpty)
-                                  Text(
-                                    msg['content'],
-                                    style: TextStyle(
-                                      fontSize: 15,
-                                      color: isMine
-                                          ? Colors.white
-                                          : Colors.black87,
-                                    ),
-                                  ),
-                                if (msg['media_url'] != null)
+                                if (msg['content'] != null && msg['content'].toString().isNotEmpty)
+                                  Text(msg['content'], style: TextStyle(fontSize: 15, color: isMine ? Colors.white : Colors.black87)),
+
+                                if (msg['media_url'] != null && !isVideo)
                                   Padding(
                                     padding: const EdgeInsets.only(top: 8),
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(12),
+                                    child: GestureDetector(
+                                      onTap: () {
+                                        showDialog(
+                                          context: context,
+                                          builder: (_) => AlertDialog(
+                                            content: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Image.network(msg['media_url']),
+                                                const SizedBox(height: 12),
+                                                ElevatedButton(
+                                                  onPressed: () => _saveToDownloads(msg['media_url'], "image_${DateTime.now().millisecondsSinceEpoch}.png"),
+                                                  child: const Text("Save"),
+                                                )
+                                              ],
+                                            ),
+                                          ),
+                                        );
+                                      },
                                       child: CachedNetworkImage(
                                         imageUrl: msg['media_url'],
                                         width: 220,
                                         fit: BoxFit.cover,
                                         placeholder: (context, url) =>
-                                            Container(
-                                                height: 150,
-                                                child: const Center(
-                                                    child:
-                                                        CircularProgressIndicator())),
+                                            Container(height: 150, color: Colors.grey.shade200),
                                         errorWidget: (context, url, error) =>
-                                            Container(
-                                          height: 150,
-                                          color: Colors.grey,
-                                          child: const Icon(Icons.error),
-                                        ),
+                                            Container(height: 150, color: Colors.grey, child: const Icon(Icons.error)),
                                       ),
                                     ),
                                   ),
+
+                                if (msg['media_url'] != null && isVideo)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 8),
+                                    child: GestureDetector(
+                                      onTap: () {
+                                        showDialog(
+                                          context: context,
+                                          builder: (_) => AlertDialog(
+                                            content: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                SizedBox(
+                                                  width: 300,
+                                                  height: 200,
+                                                  child: Chewie(
+                                                    controller: ChewieController(
+                                                      videoPlayerController: VideoPlayerController.network(msg['media_url']),
+                                                      autoPlay: false,
+                                                      looping: false,
+                                                    ),
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 12),
+                                                ElevatedButton(
+                                                  onPressed: () => _saveToDownloads(msg['media_url'], "video_${DateTime.now().millisecondsSinceEpoch}.mp4"),
+                                                  child: const Text("Save"),
+                                                )
+                                              ],
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                      child: Container(
+                                        width: 220,
+                                        height: 180,
+                                        color: Colors.black12,
+                                        child: const Icon(Icons.play_circle_fill, size: 50, color: Colors.white70),
+                                      ),
+                                    ),
+                                  ),
+
                                 const SizedBox(height: 4),
                                 Text(
-                                  msg['created_at']
-                                          ?.toString()
-                                          .substring(11, 16) ??
-                                      '',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: isMine
-                                        ? Colors.white70
-                                        : Colors.black54,
-                                  ),
+                                  msg['created_at']?.toString().substring(11, 16) ?? '',
+                                  style: TextStyle(fontSize: 11, color: isMine ? Colors.white70 : Colors.black54),
                                 ),
                               ],
                             ),
@@ -294,8 +345,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                           CircleAvatar(
                             radius: 16,
                             backgroundColor: Colors.blueAccent,
-                            child: const Icon(Icons.person,
-                                size: 16, color: Colors.white),
+                            child: const Icon(Icons.person, size: 16, color: Colors.white),
                           ),
                       ],
                     );
@@ -309,10 +359,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
               padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
               child: Row(
                 children: [
-                  IconButton(
-                    icon: const Icon(Icons.attach_file),
-                    onPressed: _sendMedia,
-                  ),
+                  IconButton(icon: const Icon(Icons.attach_file), onPressed: _sendMedia),
                   Expanded(
                     child: TextField(
                       controller: _controller,
@@ -320,12 +367,8 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                         hintText: "Write a message...",
                         filled: true,
                         fillColor: Colors.grey.shade100,
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 10),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(20),
-                          borderSide: BorderSide.none,
-                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
                       ),
                       onSubmitted: (_) => _sendMessage(),
                     ),
@@ -333,10 +376,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                   const SizedBox(width: 8),
                   CircleAvatar(
                     backgroundColor: Colors.blueAccent,
-                    child: IconButton(
-                      icon: const Icon(Icons.send, color: Colors.white),
-                      onPressed: _sendMessage,
-                    ),
+                    child: IconButton(icon: const Icon(Icons.send, color: Colors.white), onPressed: _sendMessage),
                   )
                 ],
               ),
