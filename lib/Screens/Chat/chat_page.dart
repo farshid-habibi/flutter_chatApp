@@ -23,31 +23,33 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
   final SupabaseClient _supabase = Supabase.instance.client;
   final ImagePicker _picker = ImagePicker();
 
-  late final Stream<List<Map<String, dynamic>>> _messageStream;
+Stream<List<Map<String, dynamic>>>? _messageStream;
   String _currentUserId = '';
   bool _isUploading = false;
   String? _chatUserName;
   late RealtimeChannel _channel;
+  
 
-
-  @override
-  void initState() {
-    super.initState();
+@override
+void initState() {
+  super.initState();
   WidgetsBinding.instance.addObserver(this);
+
   _currentUserId = _supabase.auth.currentUser?.id ?? '';
   _loadUserName();
 
-  _messageStream = _supabase
-      .from('messages')
-      .stream(primaryKey: ['id'])
-      .eq('room_id', widget.roomId)
-      .order('created_at', ascending: true)
-      .map((data) => data.cast<Map<String, dynamic>>());
+ _messageStream = _supabase
+    .from('messages')
+    .stream(primaryKey: ['id'])
+    .eq('room_id', widget.roomId)
+    .order('created_at', ascending: true)
+    .map((data) => data.cast<Map<String, dynamic>>());
+
 
   _channel = _supabase.channel('room_${widget.roomId}_realtime');
 
   _channel.onPostgresChanges(
-    event: PostgresChangeEvent.delete,
+    event: PostgresChangeEvent.all, 
     schema: 'public',
     table: 'messages',
     filter: PostgresChangeFilter(
@@ -56,12 +58,20 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
       value: widget.roomId,
     ),
     callback: (payload) {
-      setState(() {});
+      setState(() {
+        _messageStream = _supabase
+            .from('messages')
+            .stream(primaryKey: ['id'])
+            .eq('room_id', widget.roomId)
+            .order('created_at', ascending: true)
+            .map((data) => data.cast<Map<String, dynamic>>());
+      });
     },
   );
 
   _channel.subscribe();
-  }
+}
+
 
   Future<void> _loadUserName() async {
     try {
@@ -253,21 +263,35 @@ Future<void> _showMessageMenu(
       const SnackBar(content: Text('پیام کپی شد')),
     );
   } else if (selected == 'delete') {
-  try {
-    await _supabase.from('messages').delete().eq('id', msg['id']);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('پیام حذف شد')),
-    );
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('خطا در حذف پیام: $e')),
-    );
+    try {
+      await _supabase.from('messages').delete().eq('id', msg['id']);
+
+      // ✅ بعد از حذف، Stream مجدد بارگذاری می‌شود
+      setState(() {
+        _messageStream = _supabase
+            .from('messages')
+            .stream(primaryKey: ['id'])
+            .eq('room_id', widget.roomId)
+            .order('created_at', ascending: true)
+            .map((data) => data.cast<Map<String, dynamic>>());
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('پیام حذف شد')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('خطا در حذف پیام: $e')),
+      );
+    }
   }
-}
 }
 
   @override
   Widget build(BuildContext context) {
+     if (_messageStream == null) {
+    return const Center(child: CircularProgressIndicator());
+  }
     return Scaffold(
       appBar: AppBar(title: Text(_chatUserName ?? 'Loading...')),
       body: Column(
