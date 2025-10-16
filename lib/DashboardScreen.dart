@@ -69,11 +69,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _savedUsers.add(user);
       final prefs = await SharedPreferences.getInstance();
       prefs.setString('savedUsers', jsonEncode(_savedUsers));
-      setState(() {}); // بروز رسانی UI
+      setState(() {});
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('${user['username']} added to your list')),
       );
     }
+  }
+
+  Future<void> _toggleSavedUser(Map<String, dynamic> user) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final isSaved = _savedUsers.any((u) => u['id'] == user['id']);
+
+    if (isSaved) {
+      _savedUsers.removeWhere((u) => u['id'] == user['id']);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${user['username']} removed from your list')),
+      );
+    } else {
+      _savedUsers.add(user);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${user['username']} added to your list')),
+      );
+    }
+
+    await prefs.setString('savedUsers', jsonEncode(_savedUsers));
+
+    setState(() {});
   }
 
   void _onSearchChanged(String query) {
@@ -91,8 +113,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
               .select('id, username, email')
               .ilike('username', '%$query%');
 
-          setState(() =>
-              _searchResults = List<Map<String, dynamic>>.from(response));
+          setState(
+            () => _searchResults = List<Map<String, dynamic>>.from(response),
+          );
         }
       } catch (e) {
         print("❌ Error searching users: $e");
@@ -101,67 +124,70 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
     });
   }
+
   bool _isPickingAvatar = false;
- Future<void> _pickAndUploadAvatar() async {
-  if (_isPickingAvatar) return; // جلوگیری از چندبار همزمان
-  _isPickingAvatar = true;
-  print("🔹 Start picking avatar");
-  try {
-    final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+  Future<void> _pickAndUploadAvatar() async {
+    if (_isPickingAvatar) return; // جلوگیری از چندبار همزمان
+    _isPickingAvatar = true;
+    print("🔹 Start picking avatar");
+    try {
+      final picker = ImagePicker();
+      final pickedFile = await picker.pickImage(source: ImageSource.gallery);
 
-    if (pickedFile == null) {
-      print("⚠️ No image picked");
-      return;
+      if (pickedFile == null) {
+        print("⚠️ No image picked");
+        return;
+      }
+
+      print("📸 Image picked: ${pickedFile.path}");
+
+      final user = supabase.auth.currentUser;
+      if (user == null) {
+        print("❌ No logged-in user");
+        return;
+      }
+
+      final fileExt = path.extension(pickedFile.path);
+      final fileName = "${user.id}$fileExt";
+      final filePath = "avatars/$fileName";
+
+      print("📂 Uploading to path: $filePath");
+
+      final uploadResponse = await supabase.storage
+          .from('avatars')
+          .upload(
+            filePath,
+            File(pickedFile.path),
+            fileOptions: const FileOptions(upsert: true),
+          );
+
+      print("✅ Upload response: $uploadResponse");
+
+      final publicUrl = supabase.storage.from('avatars').getPublicUrl(filePath);
+      print("🌐 Public URL: $publicUrl");
+
+      final updateResponse = await supabase
+          .from('profiles')
+          .update({'avatar_url': publicUrl})
+          .eq('id', user.id);
+
+      print("✏️ Profile update response: $updateResponse");
+
+      setState(() {
+        user.userMetadata?['avatar_url'] = publicUrl;
+      });
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Profile picture updated!")));
+    } catch (e, st) {
+      print("❌ Error uploading avatar: $e");
+      print("Stack trace: $st");
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Failed to update avatar: $e")));
     }
-
-    print("📸 Image picked: ${pickedFile.path}");
-
-    final user = supabase.auth.currentUser;
-    if (user == null) {
-      print("❌ No logged-in user");
-      return;
-    }
-
-    final fileExt = path.extension(pickedFile.path);
-    final fileName = "${user.id}$fileExt";
-    final filePath = "avatars/$fileName";
-
-    print("📂 Uploading to path: $filePath");
-
-    final uploadResponse = await supabase.storage.from('avatars').upload(
-      filePath,
-      File(pickedFile.path),
-      fileOptions: const FileOptions(upsert: true),
-    );
-
-    print("✅ Upload response: $uploadResponse");
-
-    final publicUrl = supabase.storage.from('avatars').getPublicUrl(filePath);
-    print("🌐 Public URL: $publicUrl");
-
-    final updateResponse = await supabase.from('profiles').update({
-      'avatar_url': publicUrl,
-    }).eq('id', user.id);
-
-    print("✏️ Profile update response: $updateResponse");
-
-    setState(() {
-      user.userMetadata?['avatar_url'] = publicUrl;
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Profile picture updated!")),
-    );
-  } catch (e, st) {
-    print("❌ Error uploading avatar: $e");
-    print("Stack trace: $st");
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("Failed to update avatar: $e")),
-    );
   }
-}
-
 
   Future<void> _openChat(String otherUserId) async {
     try {
@@ -205,24 +231,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
       print("❌ Failed to open chat: $e");
     }
   }
+
   Future<void> _loadCurrentUserProfile() async {
-  final userId = supabase.auth.currentUser?.id;
-  if (userId == null) return;
+    final userId = supabase.auth.currentUser?.id;
+    if (userId == null) return;
 
-  final profile = await supabase
-      .from('profiles')
-      .select('username, avatar_url')
-      .eq('id', userId)
-      .single();
+    final profile = await supabase
+        .from('profiles')
+        .select('username, avatar_url')
+        .eq('id', userId)
+        .single();
 
-  if (profile != null && mounted) {
-    setState(() {
-      supabase.auth.currentUser?.userMetadata?['username'] = profile['username'];
-      supabase.auth.currentUser?.userMetadata?['avatar_url'] = profile['avatar_url'];
-    });
+    if (profile != null && mounted) {
+      setState(() {
+        supabase.auth.currentUser?.userMetadata?['username'] =
+            profile['username'];
+        supabase.auth.currentUser?.userMetadata?['avatar_url'] =
+            profile['avatar_url'];
+      });
+    }
   }
-}
-
 
   @override
   void dispose() {
@@ -237,7 +265,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final combinedUsers = [
       ..._savedUsers, // کاربران ذخیره شده همیشه در بالای لیست
       ..._searchResults.where(
-          (u) => !_savedUsers.any((saved) => saved['id'] == u['id']))
+        (u) => !_savedUsers.any((saved) => saved['id'] == u['id']),
+      ),
     ];
 
     return Scaffold(
@@ -246,84 +275,91 @@ class _DashboardScreenState extends State<DashboardScreen> {
         title: const Text("ChatterBox"),
         backgroundColor: Colors.blueAccent,
       ),
-    drawer: Drawer(
-  child: Column(
-    children: [
-      UserAccountsDrawerHeader(
-  decoration: const BoxDecoration(color: Colors.white),
-  accountName: Text(
-    user!.userMetadata!['username'] ?? 'User',
-    style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-  ),
-  accountEmail: Text(
-    user.email ?? '',
-    style: const TextStyle(color: Colors.grey),
-  ),
-  currentAccountPicture: GestureDetector(
-    onTap: _pickAndUploadAvatar, // 📌 اینجا متد رو صدا می‌زنیم
-    child: CircleAvatar(
-      backgroundColor: Colors.grey.shade300,
-      backgroundImage: user.userMetadata?['avatar_url'] != null
-          ? NetworkImage(user.userMetadata!['avatar_url'])
-          : null,
-      child: user.userMetadata?['avatar_url'] == null
-          ? Text(
-              (user.userMetadata?['username'] ?? 'U')[0].toUpperCase(),
-              style: const TextStyle(fontSize: 24, color: Colors.black),
-            )
-          : null,
-    ),
-  ),
-),
+      drawer: Drawer(
+        child: Column(
+          children: [
+            UserAccountsDrawerHeader(
+              decoration: const BoxDecoration(color: Colors.white),
+              accountName: Text(
+                user!.userMetadata!['username'] ?? 'User',
+                style: const TextStyle(
+                  color: Colors.black,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              accountEmail: Text(
+                user.email ?? '',
+                style: const TextStyle(color: Colors.grey),
+              ),
+              currentAccountPicture: GestureDetector(
+                onTap: _pickAndUploadAvatar, // 📌 اینجا متد رو صدا می‌زنیم
+                child: CircleAvatar(
+                  backgroundColor: Colors.grey.shade300,
+                  backgroundImage: user.userMetadata?['avatar_url'] != null
+                      ? NetworkImage(user.userMetadata!['avatar_url'])
+                      : null,
+                  child: user.userMetadata?['avatar_url'] == null
+                      ? Text(
+                          (user.userMetadata?['username'] ?? 'U')[0]
+                              .toUpperCase(),
+                          style: const TextStyle(
+                            fontSize: 24,
+                            color: Colors.black,
+                          ),
+                        )
+                      : null,
+                ),
+              ),
+            ),
 
-      // 📌 گزینه‌های شبیه تلگرام
-      ListTile(
-        leading: const Icon(Icons.group, color: Colors.blueAccent),
-        title: const Text("New Group"),
-        onTap: () {},
+            // 📌 گزینه‌های شبیه تلگرام
+            ListTile(
+              leading: const Icon(Icons.group, color: Colors.blueAccent),
+              title: const Text("New Group"),
+              onTap: () {},
+            ),
+            ListTile(
+              leading: const Icon(Icons.person, color: Colors.blueAccent),
+              title: const Text("Contacts"),
+              onTap: () {},
+            ),
+            ListTile(
+              leading: const Icon(Icons.call, color: Colors.blueAccent),
+              title: const Text("Calls"),
+              onTap: () {},
+            ),
+            ListTile(
+              leading: const Icon(Icons.bookmark, color: Colors.blueAccent),
+              title: const Text("Saved Messages"),
+              onTap: () {},
+            ),
+            ListTile(
+              leading: const Icon(Icons.settings, color: Colors.blueAccent),
+              title: const Text("Settings"),
+              onTap: () {},
+            ),
+            ListTile(
+              leading: const Icon(Icons.person_add, color: Colors.blueAccent),
+              title: const Text("Invite Friends"),
+              onTap: () {},
+            ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.logout, color: Colors.red),
+              title: const Text("Logout"),
+              onTap: () async {
+                await supabase.auth.signOut();
+                if (!mounted) return;
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+                  (route) => false,
+                );
+              },
+            ),
+          ],
+        ),
       ),
-      ListTile(
-        leading: const Icon(Icons.person, color: Colors.blueAccent),
-        title: const Text("Contacts"),
-        onTap: () {},
-      ),
-      ListTile(
-        leading: const Icon(Icons.call, color: Colors.blueAccent),
-        title: const Text("Calls"),
-        onTap: () {},
-      ),
-      ListTile(
-        leading: const Icon(Icons.bookmark, color: Colors.blueAccent),
-        title: const Text("Saved Messages"),
-        onTap: () {},
-      ),
-      ListTile(
-        leading: const Icon(Icons.settings, color: Colors.blueAccent),
-        title: const Text("Settings"),
-        onTap: () {},
-      ),
-      ListTile(
-        leading: const Icon(Icons.person_add, color: Colors.blueAccent),
-        title: const Text("Invite Friends"),
-        onTap: () {},
-      ),
-      const Divider(),
-      ListTile(
-        leading: const Icon(Icons.logout, color: Colors.red),
-        title: const Text("Logout"),
-        onTap: () async {
-          await supabase.auth.signOut();
-          if (!mounted) return;
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(builder: (_) => const WelcomeScreen()),
-            (route) => false,
-          );
-        },
-      ),
-    ],
-  ),
-),
 
       body: Column(
         children: [
@@ -359,7 +395,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       final u = combinedUsers[index];
                       return Card(
                         margin: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 6),
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -376,10 +414,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                           subtitle: Text(u['email'] ?? ''),
-                          trailing: const Icon(Icons.chat,
-                              color: Colors.blueAccent),
+                          trailing: const Icon(
+                            Icons.chat,
+                            color: Colors.blueAccent,
+                          ),
                           onTap: () => _openChat(u['id']),
-                          onLongPress: () => _saveUser(u), // ذخیره با نگه داشتن
+                          onLongPress: () =>
+                              _toggleSavedUser(u), 
                         ),
                       );
                     },
