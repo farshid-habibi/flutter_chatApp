@@ -8,6 +8,9 @@ import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_chat_bubble/chat_bubble.dart';
+import 'package:flutter_chat_bubble/bubble_type.dart';
+import 'package:flutter_chat_bubble/clippers/chat_bubble_clipper_1.dart';
 
 class ChatPage extends StatefulWidget {
   final String roomId;
@@ -17,7 +20,7 @@ class ChatPage extends StatefulWidget {
   State<ChatPage> createState() => _ChatPageState();
 }
 
-class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
+class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver, TickerProviderStateMixin {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final SupabaseClient _supabase = Supabase.instance.client;
@@ -28,6 +31,9 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
   bool _isUploading = false;
   String? _chatUserName;
   late RealtimeChannel _channel;
+
+  // Animation controllers برای هر پیام
+  final Map<String, AnimationController> _animationControllers = {};
 
   @override
   void initState() {
@@ -70,24 +76,38 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     _channel.subscribe();
     _markMessagesAsRead();
   }
-Future<void> _markMessagesAsRead() async {
-  try {
-    final unreadMessages = await _supabase
-        .from('messages')
-        .select('id')
-        .eq('room_id', widget.roomId)
-        .neq('sender_id', _currentUserId);
 
-    for (final msg in unreadMessages) {
-      await _supabase.from('message_reads').upsert({
-        'message_id': msg['id'],
-        'user_id': _currentUserId,
-      });
+  @override
+  void dispose() {
+    _markMessagesAsRead();
+    WidgetsBinding.instance.removeObserver(this);
+    _controller.dispose();
+    _scrollController.dispose();
+    _channel.unsubscribe();
+    for (final controller in _animationControllers.values) {
+      controller.dispose();
     }
-  } catch (e) {
-    print("❌ Error marking messages as read: $e");
+    super.dispose();
   }
-}
+
+  Future<void> _markMessagesAsRead() async {
+    try {
+      final unreadMessages = await _supabase
+          .from('messages')
+          .select('id')
+          .eq('room_id', widget.roomId)
+          .neq('sender_id', _currentUserId);
+
+      for (final msg in unreadMessages) {
+        await _supabase.from('message_reads').upsert({
+          'message_id': msg['id'],
+          'user_id': _currentUserId,
+        });
+      }
+    } catch (e) {
+      print("❌ Error marking messages as read: $e");
+    }
+  }
 
   Future<void> _loadUserName() async {
     try {
@@ -105,16 +125,6 @@ Future<void> _markMessagesAsRead() async {
         _chatUserName = 'Chat Room';
       });
     }
-  }
-
-  @override
-  void dispose() {
-    _markMessagesAsRead(); 
-    WidgetsBinding.instance.removeObserver(this);
-    _controller.dispose();
-    _scrollController.dispose();
-    _channel.unsubscribe();
-    super.dispose();
   }
 
   Future<void> _ensureMember() async {
@@ -237,72 +247,13 @@ Future<void> _markMessagesAsRead() async {
     });
   }
 
-  Future<void> _showMessageMenu(
-    Offset position,
-    Map<String, dynamic> msg,
-    bool isMine,
-  ) async {
-    final selected = await showMenu<String>(
-      context: context,
-      position: RelativeRect.fromLTRB(
-        position.dx,
-        position.dy,
-        MediaQuery.of(context).size.width - position.dx,
-        0,
-      ),
-      items: [
-        const PopupMenuItem<String>(
-          value: 'copy',
-          child: Row(
-            children: [
-              Icon(Icons.copy, size: 18),
-              SizedBox(width: 8),
-              Text('کپی'),
-            ],
-          ),
-        ),
-        if (isMine)
-          const PopupMenuItem<String>(
-            value: 'delete',
-            child: Row(
-              children: [
-                Icon(Icons.delete_outline, size: 18, color: Colors.red),
-                SizedBox(width: 8),
-                Text('حذف', style: TextStyle(color: Colors.red)),
-              ],
-            ),
-          ),
-      ],
-    );
-
-    if (selected == 'copy') {
-      Clipboard.setData(ClipboardData(text: msg['content'] ?? ''));
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('پیام کپی شد')));
-    } else if (selected == 'delete') {
-      try {
-        await _supabase.from('messages').delete().eq('id', msg['id']);
-
-        // ✅ بعد از حذف، Stream مجدد بارگذاری می‌شود
-        setState(() {
-          _messageStream = _supabase
-              .from('messages')
-              .stream(primaryKey: ['id'])
-              .eq('room_id', widget.roomId)
-              .order('created_at', ascending: true)
-              .map((data) => data.cast<Map<String, dynamic>>());
-        });
-
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('پیام حذف شد')));
-      } catch (e) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('خطا در حذف پیام: $e')));
-      }
+  Color _getBubbleColor(bool isMine, Map<String, dynamic> msg) {
+    if (msg['media_url'] != null && msg['is_video'] == true) {
+      return isMine ? Colors.purple[300]! : Colors.purple[100]!;
+    } else if (msg['media_url'] != null) {
+      return isMine ? Colors.green[300]! : Colors.green[100]!;
     }
+    return isMine ? const Color(0xFF0088cc) : Colors.grey[200]!;
   }
 
   @override
@@ -310,6 +261,7 @@ Future<void> _markMessagesAsRead() async {
     if (_messageStream == null) {
       return const Center(child: CircularProgressIndicator());
     }
+
     return Scaffold(
       appBar: AppBar(title: Text(_chatUserName ?? 'Loading...')),
       body: Column(
@@ -330,17 +282,11 @@ Future<void> _markMessagesAsRead() async {
             child: StreamBuilder<List<Map<String, dynamic>>>(
               stream: _messageStream,
               builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                }
-                if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+                if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));
+                if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
 
                 final messages = snapshot.data!;
-                WidgetsBinding.instance.addPostFrameCallback(
-                  (_) => _scrollToBottom(),
-                );
+                WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
 
                 return ListView.builder(
                   controller: _scrollController,
@@ -349,124 +295,96 @@ Future<void> _markMessagesAsRead() async {
                   itemBuilder: (context, index) {
                     final msg = messages[index];
                     final isMine = msg['sender_id'] == _currentUserId;
-                    final isVideo = msg['is_video'] == true;
 
-                    return GestureDetector(
-                      onLongPressStart: (details) =>
-                          _showMessageMenu(details.globalPosition, msg, isMine),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: isMine
-                            ? MainAxisAlignment.end
-                            : MainAxisAlignment.start,
-                        children: [
-                          if (!isMine)
-                            CircleAvatar(
-                              radius: 16,
-                              backgroundColor: Colors.grey.shade400,
-                              child: const Icon(
-                                Icons.person,
-                                size: 16,
-                                color: Colors.white,
+                    // Animation Controller برای هر پیام
+                    final animationController = _animationControllers[msg['id']] ??
+                        AnimationController(
+                          vsync: this,
+                          duration: const Duration(milliseconds: 400),
+                        )..forward();
+                    _animationControllers[msg['id']] = animationController;
+
+                    return FadeTransition(
+                      opacity: animationController.drive(Tween(begin: 0.0, end: 1.0)),
+                      child: SlideTransition(
+                        position: animationController.drive(
+                          Tween(begin: const Offset(0, 0.2), end: Offset.zero)
+                              .chain(CurveTween(curve: Curves.easeOut)),
+                        ),
+                        child: Row(
+                          mainAxisAlignment:
+                              isMine ? MainAxisAlignment.end : MainAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (!isMine)
+                              const CircleAvatar(
+                                radius: 16,
+                                backgroundColor: Colors.grey,
+                                child: Icon(Icons.person, color: Colors.white, size: 16),
                               ),
-                            ),
-                          const SizedBox(width: 6),
-                          Flexible(
-                            child: Container(
-                              margin: const EdgeInsets.symmetric(vertical: 4),
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: isMine
-                                    ? const Color(0xFF0088cc)
-                                    : Colors.white,
-                                borderRadius: BorderRadius.only(
-                                  topLeft: const Radius.circular(16),
-                                  topRight: const Radius.circular(16),
-                                  bottomLeft: isMine
-                                      ? const Radius.circular(16)
-                                      : const Radius.circular(0),
-                                  bottomRight: isMine
-                                      ? const Radius.circular(0)
-                                      : const Radius.circular(16),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: ChatBubble(
+                                clipper: ChatBubbleClipper1(
+                                  type: isMine ? BubbleType.sendBubble : BubbleType.receiverBubble,
                                 ),
-                                boxShadow: const [
-                                  BoxShadow(
-                                    color: Colors.black12,
-                                    blurRadius: 2,
-                                    offset: Offset(1, 1),
-                                  ),
-                                ],
-                              ),
-                              child: Column(
-                                crossAxisAlignment: isMine
-                                    ? CrossAxisAlignment.end
-                                    : CrossAxisAlignment.start,
-                                children: [
-                                  if (msg['content'] != null &&
-                                      msg['content'].toString().isNotEmpty)
-                                    Text(
-                                      msg['content'],
-                                      style: TextStyle(
-                                        fontSize: 15,
-                                        color: isMine
-                                            ? Colors.white
-                                            : Colors.black87,
+                                backGroundColor: _getBubbleColor(isMine, msg),
+                                alignment: isMine ? Alignment.topRight : Alignment.topLeft,
+                                margin: const EdgeInsets.symmetric(vertical: 4),
+                                child: Column(
+                                  crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                                  children: [
+                                    if (msg['content'] != null && msg['content'].toString().isNotEmpty)
+                                      Text(
+                                        msg['content'],
+                                        style: TextStyle(
+                                          color: isMine ? Colors.white : Colors.black87,
+                                          fontSize: 15,
+                                        ),
                                       ),
-                                    ),
-
-                                  if (msg['media_url'] != null && !isVideo)
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 8),
-                                      child: GestureDetector(
-                                        onTap: () {
-                                          showDialog(
+                                    if (msg['media_url'] != null && msg['is_video'] != true)
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 8),
+                                        child: GestureDetector(
+                                          onTap: () => showDialog(
                                             context: context,
                                             builder: (_) => AlertDialog(
                                               content: Column(
                                                 mainAxisSize: MainAxisSize.min,
                                                 children: [
-                                                  Image.network(
-                                                    msg['media_url'],
-                                                  ),
+                                                  Image.network(msg['media_url']),
                                                   const SizedBox(height: 12),
                                                   ElevatedButton(
-                                                    onPressed: () =>
-                                                        _saveToDownloads(
-                                                          msg['media_url'],
-                                                          "image_${DateTime.now().millisecondsSinceEpoch}.png",
-                                                        ),
+                                                    onPressed: () => _saveToDownloads(
+                                                        msg['media_url'],
+                                                        "image_${DateTime.now().millisecondsSinceEpoch}.png"),
                                                     child: const Text("Save"),
                                                   ),
                                                 ],
                                               ),
                                             ),
-                                          );
-                                        },
-                                        child: CachedNetworkImage(
-                                          imageUrl: msg['media_url'],
-                                          width: 220,
-                                          fit: BoxFit.cover,
-                                          placeholder: (context, url) =>
-                                              Container(
-                                                height: 150,
-                                                color: Colors.grey.shade200,
-                                              ),
-                                          errorWidget: (context, url, error) =>
-                                              Container(
-                                                height: 150,
-                                                color: Colors.grey,
-                                                child: const Icon(Icons.error),
-                                              ),
+                                          ),
+                                          child: CachedNetworkImage(
+                                            imageUrl: msg['media_url'],
+                                            width: 220,
+                                            fit: BoxFit.cover,
+                                            placeholder: (context, url) => Container(
+                                              height: 150,
+                                              color: Colors.grey.shade200,
+                                            ),
+                                            errorWidget: (context, url, error) => Container(
+                                              height: 150,
+                                              color: Colors.grey,
+                                              child: const Icon(Icons.error),
+                                            ),
+                                          ),
                                         ),
                                       ),
-                                    ),
-
-                                  if (msg['media_url'] != null && isVideo)
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 8),
-                                      child: GestureDetector(
-                                        onTap: () {
-                                          showDialog(
+                                    if (msg['media_url'] != null && msg['is_video'] == true)
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 8),
+                                        child: GestureDetector(
+                                          onTap: () => showDialog(
                                             context: context,
                                             builder: (_) => AlertDialog(
                                               content: Column(
@@ -477,10 +395,7 @@ Future<void> _markMessagesAsRead() async {
                                                     height: 200,
                                                     child: Chewie(
                                                       controller: ChewieController(
-                                                        videoPlayerController:
-                                                            VideoPlayerController.network(
-                                                              msg['media_url'],
-                                                            ),
+                                                        videoPlayerController: VideoPlayerController.network(msg['media_url']),
                                                         autoPlay: false,
                                                         looping: false,
                                                       ),
@@ -488,61 +403,48 @@ Future<void> _markMessagesAsRead() async {
                                                   ),
                                                   const SizedBox(height: 12),
                                                   ElevatedButton(
-                                                    onPressed: () =>
-                                                        _saveToDownloads(
-                                                          msg['media_url'],
-                                                          "video_${DateTime.now().millisecondsSinceEpoch}.mp4",
-                                                        ),
+                                                    onPressed: () => _saveToDownloads(
+                                                        msg['media_url'],
+                                                        "video_${DateTime.now().millisecondsSinceEpoch}.mp4"),
                                                     child: const Text("Save"),
                                                   ),
                                                 ],
                                               ),
                                             ),
-                                          );
-                                        },
-                                        child: Container(
-                                          width: 220,
-                                          height: 180,
-                                          color: Colors.black12,
-                                          child: const Icon(
-                                            Icons.play_circle_fill,
-                                            size: 50,
-                                            color: Colors.white70,
+                                          ),
+                                          child: Container(
+                                            width: 220,
+                                            height: 180,
+                                            color: Colors.black12,
+                                            child: const Icon(
+                                              Icons.play_circle_fill,
+                                              size: 50,
+                                              color: Colors.white70,
+                                            ),
                                           ),
                                         ),
                                       ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      msg['created_at']?.toString().substring(11, 16) ?? '',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: isMine ? Colors.white70 : Colors.black54,
+                                      ),
                                     ),
-
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    msg['created_at']?.toString().substring(
-                                          11,
-                                          16,
-                                        ) ??
-                                        '',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: isMine
-                                          ? Colors.white70
-                                          : Colors.black54,
-                                    ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
-                          ),
-                          if (isMine) const SizedBox(width: 6),
-                          if (isMine)
-                            CircleAvatar(
-                              radius: 16,
-                              backgroundColor: Colors.blueAccent,
-                              child: const Icon(
-                                Icons.person,
-                                size: 16,
-                                color: Colors.white,
+                            const SizedBox(width: 6),
+                            if (isMine)
+                              const CircleAvatar(
+                                radius: 16,
+                                backgroundColor: Colors.blueAccent,
+                                child: Icon(Icons.person, color: Colors.white, size: 16),
                               ),
-                            ),
-                        ],
+                          ],
+                        ),
                       ),
                     );
                   },
@@ -566,10 +468,7 @@ Future<void> _markMessagesAsRead() async {
                         hintText: "Write a message...",
                         filled: true,
                         fillColor: Colors.grey.shade100,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 10,
-                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(20),
                           borderSide: BorderSide.none,
