@@ -3,12 +3,15 @@ import 'dart:convert';
 import 'dart:convert' as RealtimePayloadType;
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_application_1/Screens/Chat/chat_page.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as path;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_application_1/Screens/Welcome/welcome_screen.dart';
+// import 'package:just_audio/just_audio.dart';
+
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({Key? key}) : super(key: key);
@@ -25,6 +28,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Timer? _debounce;
   Map<String, int> _unreadCounts = {};
   late RealtimeChannel _unreadChannel;
+// final AudioPlayer _player = AudioPlayer(); 
+
+static const MethodChannel _soundChannel =
+    MethodChannel('com.example.flutter/notifications');
+
+Future<void> _playNotificationSound() async {
+  try {
+    await _soundChannel.invokeMethod('playNotification');
+  } catch (e) {
+    print("❌ Error playing notification sound: $e");
+  }
+}
 
   @override
   void initState() {
@@ -39,7 +54,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void _setupRealtimeUnreadCounts() {
     final currentUserId = supabase.auth.currentUser!.id;
 
-    // Stream پیام‌ها که من فرستنده نیستم
     supabase
         .from('messages')
         .stream(primaryKey: ['id'])
@@ -48,7 +62,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _loadUnreadCounts();
         });
 
-    // Stream message_reads که مربوط به خودم هست
     supabase
         .from('message_reads')
         .stream(primaryKey: ['id'])
@@ -57,31 +70,44 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _loadUnreadCounts();
         });
   }
+Future<void> _loadUnreadCounts() async {
+  final currentUserId = supabase.auth.currentUser!.id;
 
-  Future<void> _loadUnreadCounts() async {
-    final currentUserId = supabase.auth.currentUser!.id;
+  final response = await supabase.rpc(
+    'get_unread_counts',
+    params: {'current_user_id': currentUserId},
+  );
 
-    final response = await supabase.rpc(
-      'get_unread_counts',
-      params: {'current_user_id': currentUserId},
-    );
+  final countsMap = <String, int>{};
 
-    final countsMap = <String, int>{};
-
-    if (response != null && response is List) {
-      for (final r in response) {
-        final userId = r['user_id'] as String?;
-        final unreadCount = (r['unread_count'] ?? 0) as int;
-        if (userId != null && unreadCount > 0) {
-          countsMap[userId] = unreadCount;
-        }
+  if (response != null && response is List) {
+    for (final r in response) {
+      final userId = r['user_id'] as String?;
+      final unreadCount = (r['unread_count'] ?? 0) as int;
+      if (userId != null && unreadCount > 0) {
+        countsMap[userId] = unreadCount;
       }
     }
-
-    setState(() {
-      _unreadCounts = countsMap;
-    });
   }
+
+  bool badgeIncreased = false;
+  countsMap.forEach((userId, newCount) {
+    final oldCount = _unreadCounts[userId] ?? 0;
+    if (newCount > oldCount) {
+      badgeIncreased = true;
+    }
+  });
+
+  setState(() {
+    _unreadCounts = countsMap;
+  });
+
+  if (badgeIncreased) {
+  _playNotificationSound();
+}
+
+}
+
 
   Future<void> _checkAndRefreshSession() async {
     final session = supabase.auth.currentSession;
@@ -240,12 +266,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ).showSnackBar(SnackBar(content: Text("Failed to update avatar: $e")));
     }
   }
+// Future<void> _playNotificationSound() async {
+//   try {
+//     await _player.setAsset('assets/sounds/notify.mp3'); // مسیر فایل داخل assets
+//     await _player.play();
+//   } catch (e) {
+//     print("❌ Error playing sound: $e");
+//   }
+// }
+
+
 
   Future<void> _openChat(String otherUserId) async {
     try {
       final currentUserId = supabase.auth.currentUser!.id;
 
-      // پیدا کردن یا ساختن اتاق چت
       final existingRoom = await supabase
           .from('rooms')
           .select('id')
@@ -333,6 +368,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   void dispose() {
+    // _player.dispose(); 
     _unreadChannel.unsubscribe();
     _debounce?.cancel();
     super.dispose();

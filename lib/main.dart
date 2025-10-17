@@ -50,13 +50,11 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
 
-    // بررسی session فعلی
     final session = Supabase.instance.client.auth.currentSession;
     if (session != null && session.user != null) {
       _initialRoute = '/dashboard';
     }
 
-    // Listener برای رویدادهای خاص auth
     _authSub = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
       if (data.event == AuthChangeEvent.passwordRecovery) {
         Navigator.of(context).pushAndRemoveUntil(
