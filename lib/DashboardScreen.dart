@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:convert' as RealtimePayloadType;
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/Screens/Chat/chat_page.dart';
@@ -22,6 +23,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<Map<String, dynamic>> _savedUsers = [];
   bool _isLoading = false;
   Timer? _debounce;
+  Map<String, int> _unreadCounts = {};
+  late RealtimeChannel _unreadChannel;
 
   @override
   void initState() {
@@ -29,6 +32,55 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _checkAndRefreshSession();
     _loadSavedUsers();
     _loadCurrentUserProfile();
+    _loadUnreadCounts();
+    _setupRealtimeUnreadCounts();
+  }
+
+  void _setupRealtimeUnreadCounts() {
+    final currentUserId = supabase.auth.currentUser!.id;
+
+    // Stream پیام‌ها که من فرستنده نیستم
+    supabase
+        .from('messages')
+        .stream(primaryKey: ['id'])
+        .neq('sender_id', currentUserId)
+        .listen((event) {
+          _loadUnreadCounts();
+        });
+
+    // Stream message_reads که مربوط به خودم هست
+    supabase
+        .from('message_reads')
+        .stream(primaryKey: ['id'])
+        .eq('user_id', currentUserId)
+        .listen((event) {
+          _loadUnreadCounts();
+        });
+  }
+
+  Future<void> _loadUnreadCounts() async {
+    final currentUserId = supabase.auth.currentUser!.id;
+
+    final response = await supabase.rpc(
+      'get_unread_counts',
+      params: {'current_user_id': currentUserId},
+    );
+
+    final countsMap = <String, int>{};
+
+    if (response != null && response is List) {
+      for (final r in response) {
+        final userId = r['user_id'] as String?;
+        final unreadCount = (r['unread_count'] ?? 0) as int;
+        if (userId != null && unreadCount > 0) {
+          countsMap[userId] = unreadCount;
+        }
+      }
+    }
+
+    setState(() {
+      _unreadCounts = countsMap;
+    });
   }
 
   Future<void> _checkAndRefreshSession() async {
@@ -193,6 +245,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     try {
       final currentUserId = supabase.auth.currentUser!.id;
 
+      // پیدا کردن یا ساختن اتاق چت
       final existingRoom = await supabase
           .from('rooms')
           .select('id')
@@ -223,10 +276,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
 
       if (!mounted) return;
-      Navigator.push(
+
+      await Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => ChatPage(roomId: roomId)),
       );
+
+      setState(() {
+        _unreadCounts[otherUserId] = 0;
+      });
+
+      final messages =
+          await supabase
+                  .from('messages')
+                  .select('id')
+                  .eq('room_id', roomId)
+                  .neq('sender_id', currentUserId)
+              as List<dynamic>;
+
+      final toUpsert = messages
+          .map((m) => {'message_id': m['id'], 'user_id': currentUserId})
+          .toList();
+
+      if (toUpsert.isNotEmpty) {
+        await supabase
+            .from('message_reads')
+            .upsert(toUpsert, onConflict: 'message_id,user_id');
+      }
+
+      // بارگذاری مجدد تعداد واقعی پیام‌های نخونده
+      await _loadUnreadCounts();
     } catch (e) {
       print("❌ Failed to open chat: $e");
     }
@@ -254,6 +333,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   void dispose() {
+    _unreadChannel.unsubscribe();
     _debounce?.cancel();
     super.dispose();
   }
@@ -414,13 +494,47 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                           subtitle: Text(u['email'] ?? ''),
-                          trailing: const Icon(
-                            Icons.chat,
-                            color: Colors.blueAccent,
+                          trailing: Stack(
+                            clipBehavior: Clip
+                                .none, 
+                            alignment: Alignment.center,
+                            children: [
+                              const Icon(
+                                Icons.chat,
+                                color: Colors.blueAccent,
+                                size: 28,
+                              ),
+                              if ((_unreadCounts[u['id']] ?? 0) > 0)
+                                Positioned(
+                                  right:
+                                      4, 
+                                  top: 20,     
+                                  child: Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: const BoxDecoration(
+                                      color: Colors.red,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    constraints: const BoxConstraints(
+                                      minWidth: 18,
+                                      minHeight: 18,
+                                    ),
+                                    child: Text(
+                                      '${_unreadCounts[u['id']]}',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ),
+                                ),
+                            ],
                           ),
+
                           onTap: () => _openChat(u['id']),
-                          onLongPress: () =>
-                              _toggleSavedUser(u), 
+                          onLongPress: () => _toggleSavedUser(u),
                         ),
                       );
                     },

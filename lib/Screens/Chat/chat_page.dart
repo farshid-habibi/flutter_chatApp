@@ -23,55 +23,71 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
   final SupabaseClient _supabase = Supabase.instance.client;
   final ImagePicker _picker = ImagePicker();
 
-Stream<List<Map<String, dynamic>>>? _messageStream;
+  Stream<List<Map<String, dynamic>>>? _messageStream;
   String _currentUserId = '';
   bool _isUploading = false;
   String? _chatUserName;
   late RealtimeChannel _channel;
-  
 
-@override
-void initState() {
-  super.initState();
-  WidgetsBinding.instance.addObserver(this);
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
 
-  _currentUserId = _supabase.auth.currentUser?.id ?? '';
-  _loadUserName();
+    _currentUserId = _supabase.auth.currentUser?.id ?? '';
+    _loadUserName();
 
- _messageStream = _supabase
-    .from('messages')
-    .stream(primaryKey: ['id'])
-    .eq('room_id', widget.roomId)
-    .order('created_at', ascending: true)
-    .map((data) => data.cast<Map<String, dynamic>>());
+    _messageStream = _supabase
+        .from('messages')
+        .stream(primaryKey: ['id'])
+        .eq('room_id', widget.roomId)
+        .order('created_at', ascending: true)
+        .map((data) => data.cast<Map<String, dynamic>>());
 
+    _channel = _supabase.channel('room_${widget.roomId}_realtime');
 
-  _channel = _supabase.channel('room_${widget.roomId}_realtime');
+    _channel.onPostgresChanges(
+      event: PostgresChangeEvent.all,
+      schema: 'public',
+      table: 'messages',
+      filter: PostgresChangeFilter(
+        type: PostgresChangeFilterType.eq,
+        column: 'room_id',
+        value: widget.roomId,
+      ),
+      callback: (payload) {
+        setState(() {
+          _messageStream = _supabase
+              .from('messages')
+              .stream(primaryKey: ['id'])
+              .eq('room_id', widget.roomId)
+              .order('created_at', ascending: true)
+              .map((data) => data.cast<Map<String, dynamic>>());
+        });
+      },
+    );
 
-  _channel.onPostgresChanges(
-    event: PostgresChangeEvent.all, 
-    schema: 'public',
-    table: 'messages',
-    filter: PostgresChangeFilter(
-      type: PostgresChangeFilterType.eq,
-      column: 'room_id',
-      value: widget.roomId,
-    ),
-    callback: (payload) {
-      setState(() {
-        _messageStream = _supabase
-            .from('messages')
-            .stream(primaryKey: ['id'])
-            .eq('room_id', widget.roomId)
-            .order('created_at', ascending: true)
-            .map((data) => data.cast<Map<String, dynamic>>());
+    _channel.subscribe();
+    _markMessagesAsRead();
+  }
+Future<void> _markMessagesAsRead() async {
+  try {
+    final unreadMessages = await _supabase
+        .from('messages')
+        .select('id')
+        .eq('room_id', widget.roomId)
+        .neq('sender_id', _currentUserId);
+
+    for (final msg in unreadMessages) {
+      await _supabase.from('message_reads').upsert({
+        'message_id': msg['id'],
+        'user_id': _currentUserId,
       });
-    },
-  );
-
-  _channel.subscribe();
+    }
+  } catch (e) {
+    print("❌ Error marking messages as read: $e");
+  }
 }
-
 
   Future<void> _loadUserName() async {
     try {
@@ -93,11 +109,12 @@ void initState() {
 
   @override
   void dispose() {
-     WidgetsBinding.instance.removeObserver(this);
-  _controller.dispose();
-  _scrollController.dispose();
-  _channel.unsubscribe();
-  super.dispose();
+    _markMessagesAsRead(); 
+    WidgetsBinding.instance.removeObserver(this);
+    _controller.dispose();
+    _scrollController.dispose();
+    _channel.unsubscribe();
+    super.dispose();
   }
 
   Future<void> _ensureMember() async {
@@ -219,79 +236,80 @@ void initState() {
       }
     });
   }
-Future<void> _showMessageMenu(
-  Offset position,
-  Map<String, dynamic> msg,
-  bool isMine,
-) async {
-  final selected = await showMenu<String>(
-    context: context,
-    position: RelativeRect.fromLTRB(
-      position.dx,
-      position.dy,
-      MediaQuery.of(context).size.width - position.dx,
-      0,
-    ),
-    items: [
-      const PopupMenuItem<String>(
-        value: 'copy',
-        child: Row(
-          children: [
-            Icon(Icons.copy, size: 18),
-            SizedBox(width: 8),
-            Text('کپی'),
-          ],
-        ),
+
+  Future<void> _showMessageMenu(
+    Offset position,
+    Map<String, dynamic> msg,
+    bool isMine,
+  ) async {
+    final selected = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        position.dx,
+        position.dy,
+        MediaQuery.of(context).size.width - position.dx,
+        0,
       ),
-      if (isMine)
+      items: [
         const PopupMenuItem<String>(
-          value: 'delete',
+          value: 'copy',
           child: Row(
             children: [
-              Icon(Icons.delete_outline, size: 18, color: Colors.red),
+              Icon(Icons.copy, size: 18),
               SizedBox(width: 8),
-              Text('حذف', style: TextStyle(color: Colors.red)),
+              Text('کپی'),
             ],
           ),
         ),
-    ],
-  );
-
-  if (selected == 'copy') {
-    Clipboard.setData(ClipboardData(text: msg['content'] ?? ''));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('پیام کپی شد')),
+        if (isMine)
+          const PopupMenuItem<String>(
+            value: 'delete',
+            child: Row(
+              children: [
+                Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                SizedBox(width: 8),
+                Text('حذف', style: TextStyle(color: Colors.red)),
+              ],
+            ),
+          ),
+      ],
     );
-  } else if (selected == 'delete') {
-    try {
-      await _supabase.from('messages').delete().eq('id', msg['id']);
 
-      // ✅ بعد از حذف، Stream مجدد بارگذاری می‌شود
-      setState(() {
-        _messageStream = _supabase
-            .from('messages')
-            .stream(primaryKey: ['id'])
-            .eq('room_id', widget.roomId)
-            .order('created_at', ascending: true)
-            .map((data) => data.cast<Map<String, dynamic>>());
-      });
+    if (selected == 'copy') {
+      Clipboard.setData(ClipboardData(text: msg['content'] ?? ''));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('پیام کپی شد')));
+    } else if (selected == 'delete') {
+      try {
+        await _supabase.from('messages').delete().eq('id', msg['id']);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('پیام حذف شد')),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('خطا در حذف پیام: $e')),
-      );
+        // ✅ بعد از حذف، Stream مجدد بارگذاری می‌شود
+        setState(() {
+          _messageStream = _supabase
+              .from('messages')
+              .stream(primaryKey: ['id'])
+              .eq('room_id', widget.roomId)
+              .order('created_at', ascending: true)
+              .map((data) => data.cast<Map<String, dynamic>>());
+        });
+
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('پیام حذف شد')));
+      } catch (e) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('خطا در حذف پیام: $e')));
+      }
     }
   }
-}
 
   @override
   Widget build(BuildContext context) {
-     if (_messageStream == null) {
-    return const Center(child: CircularProgressIndicator());
-  }
+    if (_messageStream == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
     return Scaffold(
       appBar: AppBar(title: Text(_chatUserName ?? 'Loading...')),
       body: Column(
