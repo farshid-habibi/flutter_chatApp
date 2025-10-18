@@ -329,356 +329,361 @@ class _ChatPageState extends State<ChatPage>
       return const Center(child: CircularProgressIndicator());
     }
 
-    return Scaffold(
-      appBar: AppBar(title: Text(_chatUserName ?? 'Loading...')),
-      body: Column(
-        children: [
-          if (_isUploading)
-            Container(
-              padding: const EdgeInsets.all(12),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: const [
-                  CircularProgressIndicator(color: Colors.blueAccent),
-                  SizedBox(width: 12),
-                  Text("Uploading media...", style: TextStyle(fontSize: 14)),
-                ],
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        appBar: AppBar(title: Text(_chatUserName ?? 'Loading...')),
+        body: Column(
+          children: [
+            if (_isUploading)
+              Container(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: const [
+                    CircularProgressIndicator(color: Colors.blueAccent),
+                    SizedBox(width: 12),
+                    Text("Uploading media...", style: TextStyle(fontSize: 14)),
+                  ],
+                ),
               ),
-            ),
-          Expanded(
-            child: StreamBuilder<List<Map<String, dynamic>>>(
-              stream: _messageStream,
-              builder: (context, snapshot) {
-                if (snapshot.hasError)
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                if (!snapshot.hasData)
-                  return const Center(child: CircularProgressIndicator());
+            Expanded(
+              child: StreamBuilder<List<Map<String, dynamic>>>(
+                stream: _messageStream,
+                builder: (context, snapshot) {
+                  if (snapshot.hasError)
+                    // ignore: curly_braces_in_flow_control_structures
+                    return Center(child: Text('Error: ${snapshot.error}'));
+                  if (!snapshot.hasData)
+                    // ignore: curly_braces_in_flow_control_structures
+                    return const Center(child: CircularProgressIndicator());
 
-                final messages = snapshot.data!;
-                WidgetsBinding.instance.addPostFrameCallback(
-                  (_) => _scrollToBottom(),
-                );
+                  final messages = snapshot.data!;
+                  WidgetsBinding.instance.addPostFrameCallback(
+                    (_) => _scrollToBottom(),
+                  );
 
-                return ListView.builder(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.all(12),
-                  itemCount: messages.length,
-                  itemBuilder: (context, index) {
-                    final msg = messages[index];
-                    final isMine = msg['sender_id'] == _currentUserId;
+                  return ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.all(12),
+                    itemCount: messages.length,
+                    itemBuilder: (context, index) {
+                      final msg = messages[index];
+                      final isMine = msg['sender_id'] == _currentUserId;
 
-                    // Animation Controller برای هر پیام
-                    final animationController =
-                        _animationControllers[msg['id']] ??
-                              AnimationController(
-                                vsync: this,
-                                duration: const Duration(milliseconds: 400),
-                              )
-                          ..forward();
-                    _animationControllers[msg['id']] = animationController;
+                      final animationController =
+                          _animationControllers[msg['id']] ??
+                                AnimationController(
+                                  vsync: this,
+                                  duration: const Duration(milliseconds: 400),
+                                )
+                            ..forward();
+                      _animationControllers[msg['id']] = animationController;
 
-                    return FadeTransition(
-                      opacity: animationController.drive(
-                        Tween(begin: 0.0, end: 1.0),
-                      ),
-                      child: SlideTransition(
-                        position: animationController.drive(
-                          Tween(
-                            begin: const Offset(0, 0.2),
-                            end: Offset.zero,
-                          ).chain(CurveTween(curve: Curves.easeOut)),
+                      return FadeTransition(
+                        opacity: animationController.drive(
+                          Tween(begin: 0.0, end: 1.0),
                         ),
-                        child: Row(
-                          mainAxisAlignment: isMine
-                              ? MainAxisAlignment.end
-                              : MainAxisAlignment.start,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (!isMine)
-                              const CircleAvatar(
-                                radius: 16,
-                                backgroundColor: Colors.grey,
-                                child: Icon(
-                                  Icons.person,
-                                  color: Colors.white,
-                                  size: 16,
+                        child: SlideTransition(
+                          position: animationController.drive(
+                            Tween(
+                              begin: const Offset(0, 0.2),
+                              end: Offset.zero,
+                            ).chain(CurveTween(curve: Curves.easeOut)),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: isMine
+                                ? MainAxisAlignment.end
+                                : MainAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (!isMine)
+                                const CircleAvatar(
+                                  radius: 16,
+                                  backgroundColor: Colors.grey,
+                                  child: Icon(
+                                    Icons.person,
+                                    color: Colors.white,
+                                    size: 16,
+                                  ),
                                 ),
-                              ),
-                            const SizedBox(width: 6),
-                            GestureDetector(
-                              onLongPressStart: (details) => _showMessageMenu(
-                                details.globalPosition,
-                                msg,
-                                isMine,
-                              ),
-                              child: ChatBubble(
-                                clipper: ChatBubbleClipper1(
-                                  type: isMine
-                                      ? BubbleType.sendBubble
-                                      : BubbleType.receiverBubble,
+                              const SizedBox(width: 6),
+                              GestureDetector(
+                                onLongPressStart: (details) => _showMessageMenu(
+                                  details.globalPosition,
+                                  msg,
+                                  isMine,
                                 ),
-                                backGroundColor: _getBubbleColor(isMine, msg),
-                                alignment: isMine
-                                    ? Alignment.topRight
-                                    : Alignment.topLeft,
-                                margin: const EdgeInsets.symmetric(vertical: 4),
-                                child: Column(
-                                  crossAxisAlignment: isMine
-                                      ? CrossAxisAlignment.end
-                                      : CrossAxisAlignment.start,
-                                  children: [
-                                    if (msg['content'] != null &&
-                                        msg['content'].toString().isNotEmpty)
-                                      ConstrainedBox(
-                                        constraints: BoxConstraints(
-                                          maxWidth:
-                                              MediaQuery.of(
-                                                context,
-                                              ).size.width *
-                                              0.7,
-                                        ),
-                                        child: Text(
-                                          msg['content'],
-                                          softWrap: true,
-                                          style: TextStyle(
-                                            color: isMine
-                                                ? Colors.white
-                                                : Colors.black87,
-                                            fontSize: 15,
+                                child: ChatBubble(
+                                  clipper: ChatBubbleClipper1(
+                                    type: isMine
+                                        ? BubbleType.sendBubble
+                                        : BubbleType.receiverBubble,
+                                  ),
+                                  backGroundColor: _getBubbleColor(isMine, msg),
+                                  alignment: isMine
+                                      ? Alignment.topRight
+                                      : Alignment.topLeft,
+                                  margin: const EdgeInsets.symmetric(
+                                    vertical: 4,
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: isMine
+                                        ? CrossAxisAlignment.end
+                                        : CrossAxisAlignment.start,
+                                    children: [
+                                      if (msg['content'] != null &&
+                                          msg['content'].toString().isNotEmpty)
+                                        ConstrainedBox(
+                                          constraints: BoxConstraints(
+                                            maxWidth:
+                                                MediaQuery.of(
+                                                  context,
+                                                ).size.width *
+                                                0.7,
+                                          ),
+                                          child: Text(
+                                            msg['content'],
+                                            softWrap: true,
+                                            textDirection: TextDirection.rtl,
+                                            textAlign: TextAlign.justify,
+                                            style: TextStyle(
+                                              color: isMine
+                                                  ? Colors.white
+                                                  : Colors.black87,
+                                              fontSize: 15,
+                                            ),
                                           ),
                                         ),
-                                      ),
 
-                                    if (msg['media_url'] != null) ...[
-                                      const SizedBox(height: 8),
-                                      GestureDetector(
-                                        onTap: () {
-                                          if (msg['is_video'] == true) {
-                                            showDialog(
-                                              context: context,
-                                              builder: (_) => AlertDialog(
-                                                content: SizedBox(
-                                                  width: 300,
-                                                  height: 200,
-                                                  child: Chewie(
-                                                    controller: ChewieController(
-                                                      videoPlayerController:
-                                                          VideoPlayerController.network(
-                                                            msg['media_url'],
-                                                          ),
-                                                      autoPlay: false,
-                                                      looping: false,
+                                      if (msg['media_url'] != null) ...[
+                                        const SizedBox(height: 8),
+                                        GestureDetector(
+                                          onTap: () {
+                                            if (msg['is_video'] == true) {
+                                              showDialog(
+                                                context: context,
+                                                builder: (_) => AlertDialog(
+                                                  content: SizedBox(
+                                                    width: 300,
+                                                    height: 200,
+                                                    child: Chewie(
+                                                      controller: ChewieController(
+                                                        videoPlayerController:
+                                                            VideoPlayerController.network(
+                                                              msg['media_url'],
+                                                            ),
+                                                        autoPlay: false,
+                                                        looping: false,
+                                                      ),
                                                     ),
                                                   ),
                                                 ),
-                                              ),
-                                            );
-                                          } else {
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (_) => Scaffold(
-                                                  backgroundColor: Colors.black,
-                                                  body: Stack(
-                                                    children: [
-                                                      // تصویر با قابلیت زوم
-                                                      Positioned.fill(
-                                                        child: AbsorbPointer(
-                                                          absorbing:
-                                                              false, // لمس‌ها از دکمه‌ها عبور می‌کنند
-                                                          child: PhotoView(
-                                                            imageProvider:
-                                                                NetworkImage(
-                                                                  msg['media_url'],
-                                                                ),
-                                                            backgroundDecoration:
-                                                                const BoxDecoration(
-                                                                  color: Colors
-                                                                      .black,
-                                                                ),
-                                                            minScale:
-                                                                PhotoViewComputedScale
-                                                                    .contained,
-                                                            maxScale:
-                                                                PhotoViewComputedScale
-                                                                    .covered *
-                                                                3,
-                                                          ),
-                                                        ),
-                                                      ),
-
-                                                      // نوار بالای صفحه (مثل AppBar تلگرام)
-                                                      Positioned(
-                                                        top: 0,
-                                                        left: 0,
-                                                        right: 0,
-                                                        child: SafeArea(
-                                                          child: Container(
-                                                            padding:
-                                                                const EdgeInsets.symmetric(
-                                                                  horizontal:
-                                                                      12,
-                                                                  vertical: 8,
-                                                                ),
-                                                            color: Colors.black
-                                                                .withOpacity(
-                                                                  0.4,
-                                                                ),
-                                                            child: Row(
-                                                              mainAxisAlignment:
-                                                                  MainAxisAlignment
-                                                                      .spaceBetween,
-                                                              children: [
-                                                                // دکمه برگشت
-                                                                IconButton(
-                                                                  icon: const Icon(
-                                                                    Icons
-                                                                        .arrow_back,
-                                                                    color: Colors
-                                                                        .white,
-                                                                    size: 26,
+                                              );
+                                            } else {
+                                              Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (_) => Scaffold(
+                                                    backgroundColor:
+                                                        Colors.black,
+                                                    body: Stack(
+                                                      children: [
+                                                        Positioned.fill(
+                                                          child: AbsorbPointer(
+                                                            absorbing: false,
+                                                            child: PhotoView(
+                                                              imageProvider:
+                                                                  NetworkImage(
+                                                                    msg['media_url'],
                                                                   ),
-                                                                  onPressed: () =>
-                                                                      Navigator.pop(
-                                                                        context,
-                                                                      ),
-                                                                ),
-
-                                                                // دکمه دانلود
-                                                                IconButton(
-                                                                  icon: const Icon(
-                                                                    Icons
-                                                                        .download,
+                                                              backgroundDecoration:
+                                                                  const BoxDecoration(
                                                                     color: Colors
-                                                                        .white,
-                                                                    size: 26,
+                                                                        .black,
                                                                   ),
-                                                                  onPressed: () =>
-                                                                      _saveToDownloads(
-                                                                        msg['media_url'],
-                                                                        "image_${DateTime.now().millisecondsSinceEpoch}.png",
-                                                                      ),
-                                                                ),
-                                                              ],
+                                                              minScale:
+                                                                  PhotoViewComputedScale
+                                                                      .contained,
+                                                              maxScale:
+                                                                  PhotoViewComputedScale
+                                                                      .covered *
+                                                                  3,
                                                             ),
                                                           ),
                                                         ),
-                                                      ),
-                                                    ],
+
+                                                        Positioned(
+                                                          top: 0,
+                                                          left: 0,
+                                                          right: 0,
+                                                          child: SafeArea(
+                                                            child: Container(
+                                                              padding:
+                                                                  const EdgeInsets.symmetric(
+                                                                    horizontal:
+                                                                        12,
+                                                                    vertical: 8,
+                                                                  ),
+                                                              color: Colors
+                                                                  .black
+                                                                  .withOpacity(
+                                                                    0.4,
+                                                                  ),
+                                                              child: Row(
+                                                                mainAxisAlignment:
+                                                                    MainAxisAlignment
+                                                                        .spaceBetween,
+                                                                children: [
+                                                                  IconButton(
+                                                                    icon: const Icon(
+                                                                      Icons
+                                                                          .arrow_back,
+                                                                      color: Colors
+                                                                          .white,
+                                                                      size: 26,
+                                                                    ),
+                                                                    onPressed: () =>
+                                                                        Navigator.pop(
+                                                                          context,
+                                                                        ),
+                                                                  ),
+
+                                                                  IconButton(
+                                                                    icon: const Icon(
+                                                                      Icons
+                                                                          .download,
+                                                                      color: Colors
+                                                                          .white,
+                                                                      size: 26,
+                                                                    ),
+                                                                    onPressed: () =>
+                                                                        _saveToDownloads(
+                                                                          msg['media_url'],
+                                                                          "image_${DateTime.now().millisecondsSinceEpoch}.png",
+                                                                        ),
+                                                                  ),
+                                                                ],
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
                                                   ),
                                                 ),
-                                              ),
-                                            );
-                                          }
-                                        },
-                                        child: ClipRRect(
-                                          borderRadius: BorderRadius.circular(
-                                            16,
-                                          ), // گوشه‌های گرد
-                                          child: CachedNetworkImage(
-                                            imageUrl: msg['media_url'],
-                                            width: 200, // عرض ثابت مثل تلگرام
-                                            height: 200, // ارتفاع ثابت
-                                            fit: BoxFit.cover,
-                                            placeholder: (context, url) =>
-                                                Container(
-                                                  width: 200,
-                                                  height: 200,
-                                                  color: Colors.grey.shade200,
-                                                ),
-                                            errorWidget:
-                                                (context, url, error) =>
-                                                    Container(
-                                                      width: 200,
-                                                      height: 200,
-                                                      color: Colors.grey,
-                                                      child: const Icon(
-                                                        Icons.error,
+                                              );
+                                            }
+                                          },
+                                          child: ClipRRect(
+                                            borderRadius: BorderRadius.circular(
+                                              16,
+                                            ),
+                                            child: CachedNetworkImage(
+                                              imageUrl: msg['media_url'],
+                                              width: 200,
+                                              height: 200,
+                                              fit: BoxFit.cover,
+                                              placeholder: (context, url) =>
+                                                  Container(
+                                                    width: 200,
+                                                    height: 200,
+                                                    color: Colors.grey.shade200,
+                                                  ),
+                                              errorWidget:
+                                                  (context, url, error) =>
+                                                      Container(
+                                                        width: 200,
+                                                        height: 200,
+                                                        color: Colors.grey,
+                                                        child: const Icon(
+                                                          Icons.error,
+                                                        ),
                                                       ),
-                                                    ),
+                                            ),
                                           ),
+                                        ),
+                                      ],
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        msg['created_at']?.toString().substring(
+                                              11,
+                                              16,
+                                            ) ??
+                                            '',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: isMine
+                                              ? Colors.white70
+                                              : Colors.black54,
                                         ),
                                       ),
                                     ],
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      msg['created_at']?.toString().substring(
-                                            11,
-                                            16,
-                                          ) ??
-                                          '',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: isMine
-                                            ? Colors.white70
-                                            : Colors.black54,
-                                      ),
-                                    ),
-                                  ],
+                                  ),
                                 ),
                               ),
-                            ),
-                            const SizedBox(width: 6),
-                            if (isMine)
-                              const CircleAvatar(
-                                radius: 16,
-                                backgroundColor: Colors.blueAccent,
-                                child: Icon(
-                                  Icons.person,
-                                  color: Colors.white,
-                                  size: 16,
+                              const SizedBox(width: 6),
+                              if (isMine)
+                                const CircleAvatar(
+                                  radius: 16,
+                                  backgroundColor: Colors.blueAccent,
+                                  child: Icon(
+                                    Icons.person,
+                                    color: Colors.white,
+                                    size: 16,
+                                  ),
                                 ),
-                              ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.attach_file),
-                    onPressed: _sendMedia,
-                  ),
-                  Expanded(
-                    child: TextField(
-                      controller: _controller,
-                      decoration: InputDecoration(
-                        hintText: "Write a message...",
-                        filled: true,
-                        fillColor: Colors.grey.shade100,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 10,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(20),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                      onSubmitted: (_) => _sendMessage(),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  CircleAvatar(
-                    backgroundColor: Colors.blueAccent,
-                    child: IconButton(
-                      icon: const Icon(Icons.send, color: Colors.white),
-                      onPressed: _sendMessage,
-                    ),
-                  ),
-                ],
+                      );
+                    },
+                  );
+                },
               ),
             ),
-          ),
-        ],
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.attach_file),
+                      onPressed: _sendMedia,
+                    ),
+                    Expanded(
+                      child: TextField(
+                        controller: _controller,
+                        decoration: InputDecoration(
+                          hintText: "Write a message...",
+                          filled: true,
+                          fillColor: Colors.grey.shade100,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                        onSubmitted: (_) => _sendMessage(),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    CircleAvatar(
+                      backgroundColor: Colors.blueAccent,
+                      child: IconButton(
+                        icon: const Icon(Icons.send, color: Colors.white),
+                        onPressed: _sendMessage,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
