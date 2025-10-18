@@ -479,14 +479,92 @@ class _ChatPageState extends State<ChatPage>
                                               MaterialPageRoute(
                                                 builder: (_) => Scaffold(
                                                   backgroundColor: Colors.black,
-                                                  appBar: AppBar(
-                                                    backgroundColor:
-                                                        Colors.transparent,
-                                                  ),
-                                                  body: PhotoView(
-                                                    imageProvider: NetworkImage(
-                                                      msg['media_url'],
-                                                    ),
+                                                  body: Stack(
+                                                    children: [
+                                                      // تصویر با قابلیت زوم
+                                                      Positioned.fill(
+                                                        child: AbsorbPointer(
+                                                          absorbing:
+                                                              false, // لمس‌ها از دکمه‌ها عبور می‌کنند
+                                                          child: PhotoView(
+                                                            imageProvider:
+                                                                NetworkImage(
+                                                                  msg['media_url'],
+                                                                ),
+                                                            backgroundDecoration:
+                                                                const BoxDecoration(
+                                                                  color: Colors
+                                                                      .black,
+                                                                ),
+                                                            minScale:
+                                                                PhotoViewComputedScale
+                                                                    .contained,
+                                                            maxScale:
+                                                                PhotoViewComputedScale
+                                                                    .covered *
+                                                                3,
+                                                          ),
+                                                        ),
+                                                      ),
+
+                                                      // نوار بالای صفحه (مثل AppBar تلگرام)
+                                                      Positioned(
+                                                        top: 0,
+                                                        left: 0,
+                                                        right: 0,
+                                                        child: SafeArea(
+                                                          child: Container(
+                                                            padding:
+                                                                const EdgeInsets.symmetric(
+                                                                  horizontal:
+                                                                      12,
+                                                                  vertical: 8,
+                                                                ),
+                                                            color: Colors.black
+                                                                .withOpacity(
+                                                                  0.4,
+                                                                ),
+                                                            child: Row(
+                                                              mainAxisAlignment:
+                                                                  MainAxisAlignment
+                                                                      .spaceBetween,
+                                                              children: [
+                                                                // دکمه برگشت
+                                                                IconButton(
+                                                                  icon: const Icon(
+                                                                    Icons
+                                                                        .arrow_back,
+                                                                    color: Colors
+                                                                        .white,
+                                                                    size: 26,
+                                                                  ),
+                                                                  onPressed: () =>
+                                                                      Navigator.pop(
+                                                                        context,
+                                                                      ),
+                                                                ),
+
+                                                                // دکمه دانلود
+                                                                IconButton(
+                                                                  icon: const Icon(
+                                                                    Icons
+                                                                        .download,
+                                                                    color: Colors
+                                                                        .white,
+                                                                    size: 26,
+                                                                  ),
+                                                                  onPressed: () =>
+                                                                      _saveToDownloads(
+                                                                        msg['media_url'],
+                                                                        "image_${DateTime.now().millisecondsSinceEpoch}.png",
+                                                                      ),
+                                                                ),
+                                                              ],
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ],
                                                   ),
                                                 ),
                                               ),
