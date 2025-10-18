@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:photo_view/photo_view.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -20,7 +21,8 @@ class ChatPage extends StatefulWidget {
   State<ChatPage> createState() => _ChatPageState();
 }
 
-class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver, TickerProviderStateMixin {
+class _ChatPageState extends State<ChatPage>
+    with WidgetsBindingObserver, TickerProviderStateMixin {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final SupabaseClient _supabase = Supabase.instance.client;
@@ -247,13 +249,78 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver, Ticker
     });
   }
 
+  Future<void> _showMessageMenu(
+    Offset position,
+    Map<String, dynamic> msg,
+    bool isMine,
+  ) async {
+    final selected = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        position.dx,
+        position.dy,
+        MediaQuery.of(context).size.width - position.dx,
+        0,
+      ),
+      items: [
+        const PopupMenuItem<String>(
+          value: 'copy',
+          child: Row(
+            children: [
+              Icon(Icons.copy, size: 18),
+              SizedBox(width: 8),
+              Text('کپی'),
+            ],
+          ),
+        ),
+        if (isMine)
+          const PopupMenuItem<String>(
+            value: 'delete',
+            child: Row(
+              children: [
+                Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                SizedBox(width: 8),
+                Text('حذف', style: TextStyle(color: Colors.red)),
+              ],
+            ),
+          ),
+      ],
+    );
+
+    if (selected == 'copy') {
+      Clipboard.setData(ClipboardData(text: msg['content'] ?? ''));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('پیام کپی شد')));
+    } else if (selected == 'delete') {
+      try {
+        await _supabase.from('messages').delete().eq('id', msg['id']);
+        setState(() {
+          _messageStream = _supabase
+              .from('messages')
+              .stream(primaryKey: ['id'])
+              .eq('room_id', widget.roomId)
+              .order('created_at', ascending: true)
+              .map((data) => data.cast<Map<String, dynamic>>());
+        });
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('پیام حذف شد')));
+      } catch (e) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('خطا در حذف پیام: $e')));
+      }
+    }
+  }
+
   Color _getBubbleColor(bool isMine, Map<String, dynamic> msg) {
     if (msg['media_url'] != null && msg['is_video'] == true) {
-      return isMine ? Colors.purple[300]! : Colors.purple[100]!;
+      return isMine ? Colors.purple.shade400 : Colors.purple.shade100;
     } else if (msg['media_url'] != null) {
-      return isMine ? Colors.green[300]! : Colors.green[100]!;
+      return isMine ? Colors.green.shade100 : Colors.grey.shade300;
     }
-    return isMine ? const Color(0xFF0088cc) : Colors.grey[200]!;
+    return isMine ? Colors.blue.shade600 : Colors.grey.shade200;
   }
 
   @override
@@ -282,11 +349,15 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver, Ticker
             child: StreamBuilder<List<Map<String, dynamic>>>(
               stream: _messageStream,
               builder: (context, snapshot) {
-                if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));
-                if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+                if (snapshot.hasError)
+                  return Center(child: Text('Error: ${snapshot.error}'));
+                if (!snapshot.hasData)
+                  return const Center(child: CircularProgressIndicator());
 
                 final messages = snapshot.data!;
-                WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+                WidgetsBinding.instance.addPostFrameCallback(
+                  (_) => _scrollToBottom(),
+                );
 
                 return ListView.builder(
                   controller: _scrollController,
@@ -297,139 +368,172 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver, Ticker
                     final isMine = msg['sender_id'] == _currentUserId;
 
                     // Animation Controller برای هر پیام
-                    final animationController = _animationControllers[msg['id']] ??
-                        AnimationController(
-                          vsync: this,
-                          duration: const Duration(milliseconds: 400),
-                        )..forward();
+                    final animationController =
+                        _animationControllers[msg['id']] ??
+                              AnimationController(
+                                vsync: this,
+                                duration: const Duration(milliseconds: 400),
+                              )
+                          ..forward();
                     _animationControllers[msg['id']] = animationController;
 
                     return FadeTransition(
-                      opacity: animationController.drive(Tween(begin: 0.0, end: 1.0)),
+                      opacity: animationController.drive(
+                        Tween(begin: 0.0, end: 1.0),
+                      ),
                       child: SlideTransition(
                         position: animationController.drive(
-                          Tween(begin: const Offset(0, 0.2), end: Offset.zero)
-                              .chain(CurveTween(curve: Curves.easeOut)),
+                          Tween(
+                            begin: const Offset(0, 0.2),
+                            end: Offset.zero,
+                          ).chain(CurveTween(curve: Curves.easeOut)),
                         ),
                         child: Row(
-                          mainAxisAlignment:
-                              isMine ? MainAxisAlignment.end : MainAxisAlignment.start,
+                          mainAxisAlignment: isMine
+                              ? MainAxisAlignment.end
+                              : MainAxisAlignment.start,
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             if (!isMine)
                               const CircleAvatar(
                                 radius: 16,
                                 backgroundColor: Colors.grey,
-                                child: Icon(Icons.person, color: Colors.white, size: 16),
+                                child: Icon(
+                                  Icons.person,
+                                  color: Colors.white,
+                                  size: 16,
+                                ),
                               ),
                             const SizedBox(width: 6),
-                            Flexible(
+                            GestureDetector(
+                              onLongPressStart: (details) => _showMessageMenu(
+                                details.globalPosition,
+                                msg,
+                                isMine,
+                              ),
                               child: ChatBubble(
                                 clipper: ChatBubbleClipper1(
-                                  type: isMine ? BubbleType.sendBubble : BubbleType.receiverBubble,
+                                  type: isMine
+                                      ? BubbleType.sendBubble
+                                      : BubbleType.receiverBubble,
                                 ),
                                 backGroundColor: _getBubbleColor(isMine, msg),
-                                alignment: isMine ? Alignment.topRight : Alignment.topLeft,
+                                alignment: isMine
+                                    ? Alignment.topRight
+                                    : Alignment.topLeft,
                                 margin: const EdgeInsets.symmetric(vertical: 4),
                                 child: Column(
-                                  crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                                  crossAxisAlignment: isMine
+                                      ? CrossAxisAlignment.end
+                                      : CrossAxisAlignment.start,
                                   children: [
-                                    if (msg['content'] != null && msg['content'].toString().isNotEmpty)
-                                      Text(
-                                        msg['content'],
-                                        style: TextStyle(
-                                          color: isMine ? Colors.white : Colors.black87,
-                                          fontSize: 15,
+                                    if (msg['content'] != null &&
+                                        msg['content'].toString().isNotEmpty)
+                                      ConstrainedBox(
+                                        constraints: BoxConstraints(
+                                          maxWidth:
+                                              MediaQuery.of(
+                                                context,
+                                              ).size.width *
+                                              0.7,
                                         ),
-                                      ),
-                                    if (msg['media_url'] != null && msg['is_video'] != true)
-                                      Padding(
-                                        padding: const EdgeInsets.only(top: 8),
-                                        child: GestureDetector(
-                                          onTap: () => showDialog(
-                                            context: context,
-                                            builder: (_) => AlertDialog(
-                                              content: Column(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  Image.network(msg['media_url']),
-                                                  const SizedBox(height: 12),
-                                                  ElevatedButton(
-                                                    onPressed: () => _saveToDownloads(
-                                                        msg['media_url'],
-                                                        "image_${DateTime.now().millisecondsSinceEpoch}.png"),
-                                                    child: const Text("Save"),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ),
-                                          child: CachedNetworkImage(
-                                            imageUrl: msg['media_url'],
-                                            width: 220,
-                                            fit: BoxFit.cover,
-                                            placeholder: (context, url) => Container(
-                                              height: 150,
-                                              color: Colors.grey.shade200,
-                                            ),
-                                            errorWidget: (context, url, error) => Container(
-                                              height: 150,
-                                              color: Colors.grey,
-                                              child: const Icon(Icons.error),
-                                            ),
+                                        child: Text(
+                                          msg['content'],
+                                          softWrap: true,
+                                          style: TextStyle(
+                                            color: isMine
+                                                ? Colors.white
+                                                : Colors.black87,
+                                            fontSize: 15,
                                           ),
                                         ),
                                       ),
-                                    if (msg['media_url'] != null && msg['is_video'] == true)
-                                      Padding(
-                                        padding: const EdgeInsets.only(top: 8),
-                                        child: GestureDetector(
-                                          onTap: () => showDialog(
-                                            context: context,
-                                            builder: (_) => AlertDialog(
-                                              content: Column(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  SizedBox(
-                                                    width: 300,
-                                                    height: 200,
-                                                    child: Chewie(
-                                                      controller: ChewieController(
-                                                        videoPlayerController: VideoPlayerController.network(msg['media_url']),
-                                                        autoPlay: false,
-                                                        looping: false,
-                                                      ),
+
+                                    if (msg['media_url'] != null) ...[
+                                      const SizedBox(height: 8),
+                                      GestureDetector(
+                                        onTap: () {
+                                          if (msg['is_video'] == true) {
+                                            showDialog(
+                                              context: context,
+                                              builder: (_) => AlertDialog(
+                                                content: SizedBox(
+                                                  width: 300,
+                                                  height: 200,
+                                                  child: Chewie(
+                                                    controller: ChewieController(
+                                                      videoPlayerController:
+                                                          VideoPlayerController.network(
+                                                            msg['media_url'],
+                                                          ),
+                                                      autoPlay: false,
+                                                      looping: false,
                                                     ),
                                                   ),
-                                                  const SizedBox(height: 12),
-                                                  ElevatedButton(
-                                                    onPressed: () => _saveToDownloads(
-                                                        msg['media_url'],
-                                                        "video_${DateTime.now().millisecondsSinceEpoch}.mp4"),
-                                                    child: const Text("Save"),
-                                                  ),
-                                                ],
+                                                ),
                                               ),
-                                            ),
-                                          ),
-                                          child: Container(
-                                            width: 220,
-                                            height: 180,
-                                            color: Colors.black12,
-                                            child: const Icon(
-                                              Icons.play_circle_fill,
-                                              size: 50,
-                                              color: Colors.white70,
-                                            ),
+                                            );
+                                          } else {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (_) => Scaffold(
+                                                  backgroundColor: Colors.black,
+                                                  appBar: AppBar(
+                                                    backgroundColor:
+                                                        Colors.transparent,
+                                                  ),
+                                                  body: PhotoView(
+                                                    imageProvider: NetworkImage(
+                                                      msg['media_url'],
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            );
+                                          }
+                                        },
+                                        child: ClipRRect(
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ), // گوشه‌های گرد
+                                          child: CachedNetworkImage(
+                                            imageUrl: msg['media_url'],
+                                            width: 200, // عرض ثابت مثل تلگرام
+                                            height: 200, // ارتفاع ثابت
+                                            fit: BoxFit.cover,
+                                            placeholder: (context, url) =>
+                                                Container(
+                                                  width: 200,
+                                                  height: 200,
+                                                  color: Colors.grey.shade200,
+                                                ),
+                                            errorWidget:
+                                                (context, url, error) =>
+                                                    Container(
+                                                      width: 200,
+                                                      height: 200,
+                                                      color: Colors.grey,
+                                                      child: const Icon(
+                                                        Icons.error,
+                                                      ),
+                                                    ),
                                           ),
                                         ),
                                       ),
+                                    ],
                                     const SizedBox(height: 4),
                                     Text(
-                                      msg['created_at']?.toString().substring(11, 16) ?? '',
+                                      msg['created_at']?.toString().substring(
+                                            11,
+                                            16,
+                                          ) ??
+                                          '',
                                       style: TextStyle(
                                         fontSize: 11,
-                                        color: isMine ? Colors.white70 : Colors.black54,
+                                        color: isMine
+                                            ? Colors.white70
+                                            : Colors.black54,
                                       ),
                                     ),
                                   ],
@@ -441,7 +545,11 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver, Ticker
                               const CircleAvatar(
                                 radius: 16,
                                 backgroundColor: Colors.blueAccent,
-                                child: Icon(Icons.person, color: Colors.white, size: 16),
+                                child: Icon(
+                                  Icons.person,
+                                  color: Colors.white,
+                                  size: 16,
+                                ),
                               ),
                           ],
                         ),
@@ -468,7 +576,10 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver, Ticker
                         hintText: "Write a message...",
                         filled: true,
                         fillColor: Colors.grey.shade100,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(20),
                           borderSide: BorderSide.none,
