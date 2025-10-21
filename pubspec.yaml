@@ -49,6 +49,7 @@ dependencies:
   chewie: ^1.7.4
   photo_view: ^0.15.0
   flutter_chat_bubble: ^2.0.2
+  bubble: ^1.2.1
   # just_audio: ^0.9.42
 
 
@@ -70,7 +71,7 @@ flutter:
     - assets/images/
     - assets/icons/
     - assets/images/chatApp.jpg
-    - assets/images/background.jpg
+    - assets/images/background.png
     - assets/sounds/notify.mp3
 
   #   - images/a_dot_burr.jpeg
