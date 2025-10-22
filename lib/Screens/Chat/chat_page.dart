@@ -34,9 +34,168 @@ class _ChatPageState extends State<ChatPage>
   bool _isUploading = false;
   String? _chatUserName;
   late RealtimeChannel _channel;
+  File? _uploadingMediaFile;
 
-  // Animation controllers برای هر پیام
   final Map<String, AnimationController> _animationControllers = {};
+  Widget _buildMediaMessage(
+    BuildContext context,
+    Map<String, dynamic> msg,
+    bool isMine,
+  ) {
+    final caption = msg['content'] ?? '';
+    final int minPreviewLength = 80;
+    final bool hasLongText = caption.length > minPreviewLength;
+    final ValueNotifier<bool> expanded = ValueNotifier(false);
+
+    final double maxCardWidth = MediaQuery.of(context).size.width * 0.75;
+
+    return ValueListenableBuilder<bool>(
+      valueListenable: expanded,
+      builder: (context, isExpanded, _) {
+        final String displayText = hasLongText && !isExpanded
+            ? '${caption.substring(0, minPreviewLength)}...'
+            : caption;
+
+        return Container(
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          alignment: isMine ? Alignment.centerRight : Alignment.centerRight,
+          child: Container(
+            width: maxCardWidth,
+            child: Card(
+              color: isMine ? Colors.grey.shade900 : Colors.indigo.shade700,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  GestureDetector(
+                    onTap: () {
+                      if (msg['is_video'] == true) {
+                        showDialog(
+                          context: context,
+                          builder: (_) => AlertDialog(
+                            content: SizedBox(
+                              width: 300,
+                              height: 300,
+                              child: Chewie(
+                                controller: ChewieController(
+                                  videoPlayerController:
+                                      VideoPlayerController.network(
+                                        msg['media_url'],
+                                      ),
+                                  autoPlay: false,
+                                  looping: false,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      } else {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => Scaffold(
+                              backgroundColor: Colors.black,
+                              body: PhotoView(
+                                imageProvider: NetworkImage(msg['media_url']),
+                                backgroundDecoration: const BoxDecoration(
+                                  color: Colors.black,
+                                ),
+                                minScale: PhotoViewComputedScale.contained,
+                                maxScale: PhotoViewComputedScale.covered * 3,
+                              ),
+                            ),
+                          ),
+                        );
+                      }
+                    },
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(12),
+                      ),
+                      child: CachedNetworkImage(
+                        imageUrl: msg['media_url'],
+                        width: maxCardWidth,
+                        height: 200,
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) => Container(
+                          width: maxCardWidth,
+                          height: 200,
+                          color: Colors.grey.shade700,
+                          child: const Center(
+                            child: CircularProgressIndicator(
+                              color: Colors.white70,
+                            ),
+                          ),
+                        ),
+                        errorWidget: (context, url, error) => Container(
+                          width: maxCardWidth,
+                          height: 200,
+                          color: Colors.grey.shade700,
+                          child: const Icon(
+                            Icons.broken_image,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // متن زیر عکس
+                  if (caption.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 6,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            displayText,
+                            textDirection: TextDirection.rtl,
+                            textAlign: TextAlign.justify,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                            ),
+                          ),
+                          if (hasLongText)
+                            GestureDetector(
+                              onTap: () => expanded.value = !expanded.value,
+                              child: Text(
+                                isExpanded ? 'کم کردن متن' : 'ادامه',
+                                textDirection: TextDirection.rtl,
+                                style: const TextStyle(
+                                  color: Colors.blueAccent,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          const SizedBox(height: 2),
+                          Text(
+                            msg['created_at']?.toString().substring(11, 16) ??
+                                '',
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
 
   @override
   void initState() {
@@ -130,6 +289,139 @@ class _ChatPageState extends State<ChatPage>
     }
   }
 
+  Future<void> _showAddCaptionDialog(File mediaFile, bool isVideo) async {
+    final TextEditingController captionController = TextEditingController();
+
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          backgroundColor: Colors.grey.shade900,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: isVideo
+                      ? Container(
+                          width: double.infinity,
+                          height: 200,
+                          color: Colors.black,
+                          child: Center(
+                            child: Icon(
+                              Icons.videocam,
+                              color: Colors.white,
+                              size: 50,
+                            ),
+                          ),
+                        )
+                      : Image.file(
+                          mediaFile,
+                          width: double.infinity,
+                          height: 200,
+                          fit: BoxFit.cover,
+                        ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: captionController,
+                  maxLines: 3,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    hintText: "نوشتن متن...",
+                    hintStyle: TextStyle(color: Colors.white54),
+                    filled: true,
+                    fillColor: Colors.grey.shade800,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text(
+                        "لغو",
+                        style: TextStyle(color: Colors.redAccent),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context, captionController.text);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blueAccent,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text("ارسال"),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    ).then((captionText) {
+      if (captionText != null && captionText.isNotEmpty) {
+        // اینجا متن را همراه عکس/ویدیو آپلود کن
+        _uploadMediaWithCaption(mediaFile, isVideo, captionText);
+      }
+    });
+  }
+
+  Future<void> _uploadMediaWithCaption(
+    File file,
+    bool isVideo,
+    String? caption,
+  ) async {
+    setState(() {
+      _isUploading = true;
+      _uploadingMediaFile = file;
+    });
+
+    try {
+      final fileExt = file.path.split('.').last;
+      final fileName =
+          '${DateTime.now().millisecondsSinceEpoch}_${_currentUserId}.$fileExt';
+
+      await _supabase.storage.from('chat_media').upload(fileName, file);
+      final mediaUrl = _supabase.storage
+          .from('chat_media')
+          .getPublicUrl(fileName);
+
+      await _ensureMember();
+      await _supabase.from('messages').insert({
+        'room_id': widget.roomId,
+        'sender_id': _currentUserId,
+        'content': caption ?? '',
+        'media_url': mediaUrl,
+        'is_video': isVideo,
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Failed to upload media')));
+    } finally {
+      setState(() {
+        _isUploading = false;
+        _uploadingMediaFile = null;
+      });
+    }
+  }
+
   Future<void> _ensureMember() async {
     try {
       final memberCheck = await _supabase
@@ -180,31 +472,58 @@ class _ChatPageState extends State<ChatPage>
       final XFile? pickedFile = await _picker.pickMedia();
       if (pickedFile == null) return;
 
-      setState(() => _isUploading = true);
+      final captionController = TextEditingController();
+      final caption = await showDialog<String>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('افزودن توضیح'),
+          content: TextField(
+            controller: captionController,
+            decoration: const InputDecoration(
+              hintText: 'توضیحی برای عکس یا ویدیو بنویس...',
+            ),
+            textDirection: TextDirection.rtl,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, null),
+              child: const Text('انصراف'),
+            ),
+            ElevatedButton(
+              onPressed: () =>
+                  Navigator.pop(context, captionController.text.trim()),
+              child: const Text('ارسال'),
+            ),
+          ],
+        ),
+      );
+
+      // اگر کاربر انصراف داد
+      if (caption == null) return;
 
       final File file = File(pickedFile.path);
-      final fileExt = pickedFile.path.split('.').last;
-      final isVideo = [
-        'mp4',
-        'mov',
-        'avi',
-        'mkv',
-      ].contains(fileExt.toLowerCase());
+      final fileExt = pickedFile.path.split('.').last.toLowerCase();
+      final isVideo = ['mp4', 'mov', 'avi', 'mkv'].contains(fileExt);
+
+      setState(() {
+        _isUploading = true;
+        _uploadingMediaFile = file;
+      });
 
       final fileName =
           '${DateTime.now().millisecondsSinceEpoch}_${_currentUserId}.$fileExt';
 
       await _supabase.storage.from('chat_media').upload(fileName, file);
-
       final mediaUrl = _supabase.storage
           .from('chat_media')
           .getPublicUrl(fileName);
 
       await _ensureMember();
+
       await _supabase.from('messages').insert({
         'room_id': widget.roomId,
         'sender_id': _currentUserId,
-        'content': '',
+        'content': caption,
         'media_url': mediaUrl,
         'is_video': isVideo,
       });
@@ -215,9 +534,12 @@ class _ChatPageState extends State<ChatPage>
       print("📍 $st");
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Failed to send media')));
+      ).showSnackBar(const SnackBar(content: Text('خطا در ارسال فایل')));
     } finally {
-      setState(() => _isUploading = false);
+      setState(() {
+        _isUploading = false;
+        _uploadingMediaFile = null;
+      });
     }
   }
 
@@ -350,18 +672,6 @@ class _ChatPageState extends State<ChatPage>
 
         body: Column(
           children: [
-            if (_isUploading)
-              Container(
-                padding: const EdgeInsets.all(12),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: const [
-                    CircularProgressIndicator(color: Colors.blueAccent),
-                    SizedBox(width: 12),
-                    Text("Uploading media...", style: TextStyle(fontSize: 14)),
-                  ],
-                ),
-              ),
             Expanded(
               child: StreamBuilder<List<Map<String, dynamic>>>(
                 stream: _messageStream,
@@ -415,115 +725,10 @@ class _ChatPageState extends State<ChatPage>
                             child: Container(
                               margin: const EdgeInsets.symmetric(vertical: 4),
                               alignment: isMine
-                                  ? Alignment.centerRight
-                                  : Alignment.centerLeft,
+                                  ? Alignment.centerLeft
+                                  : Alignment.centerRight,
                               child: msg['media_url'] != null
-                                  ? GestureDetector(
-                                      onTap: () {
-                                        if (msg['is_video'] == true) {
-                                          showDialog(
-                                            context: context,
-                                            builder: (_) => AlertDialog(
-                                              content: SizedBox(
-                                                width: 300,
-                                                height: 200,
-                                                child: Chewie(
-                                                  controller: ChewieController(
-                                                    videoPlayerController:
-                                                        VideoPlayerController.network(
-                                                          msg['media_url'],
-                                                        ),
-                                                    autoPlay: false,
-                                                    looping: false,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          );
-                                        } else {
-                                          Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (_) => Scaffold(
-                                                backgroundColor: Colors.black,
-                                                body: PhotoView(
-                                                  imageProvider: NetworkImage(
-                                                    msg['media_url'],
-                                                  ),
-                                                  backgroundDecoration:
-                                                      const BoxDecoration(
-                                                        color: Colors.black,
-                                                      ),
-                                                  minScale:
-                                                      PhotoViewComputedScale
-                                                          .contained,
-                                                  maxScale:
-                                                      PhotoViewComputedScale
-                                                          .covered *
-                                                      3,
-                                                ),
-                                              ),
-                                            ),
-                                          );
-                                        }
-                                      },
-                                      child: Stack(
-                                        alignment: Alignment.bottomRight,
-                                        children: [
-                                          Container(
-                                            width: 250,
-                                            height: 250,
-                                            decoration: BoxDecoration(
-                                              borderRadius:
-                                                  BorderRadius.circular(10),
-                                              image: DecorationImage(
-                                                image:
-                                                    CachedNetworkImageProvider(
-                                                      msg['media_url'],
-                                                    ),
-                                                fit: BoxFit.cover,
-                                              ),
-                                            ),
-                                            foregroundDecoration: BoxDecoration(
-                                              borderRadius:
-                                                  BorderRadius.circular(10),
-                                              border: Border.all(
-                                                color: Colors.indigo.shade200,
-                                                width: 2.0,
-                                              ),
-                                            ),
-                                          ),
-                                          Positioned(
-                                            bottom: 6,
-                                            right: 8,
-                                            child: Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 6,
-                                                    vertical: 2,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                color: Colors.black54
-                                                    .withOpacity(0.4),
-                                                borderRadius:
-                                                    BorderRadius.circular(4),
-                                              ),
-                                              child: Text(
-                                                msg['created_at']
-                                                        ?.toString()
-                                                        .substring(11, 16) ??
-                                                    '',
-                                                style: const TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 11,
-                                                  fontWeight: FontWeight.w500,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    )
+                                  ? _buildMediaMessage(context, msg, isMine)
                                   : Bubble(
                                       nip: isMine
                                           ? BubbleNip.rightTop
@@ -548,10 +753,8 @@ class _ChatPageState extends State<ChatPage>
                                               softWrap: true,
                                               textDirection: TextDirection.rtl,
                                               textAlign: TextAlign.justify,
-                                              style: TextStyle(
-                                                color: isMine
-                                                    ? Colors.white
-                                                    : Colors.white,
+                                              style: const TextStyle(
+                                                color: Colors.white,
                                                 fontSize: 16,
                                               ),
                                             ),
@@ -565,8 +768,8 @@ class _ChatPageState extends State<ChatPage>
                                             style: TextStyle(
                                               fontSize: 12,
                                               color: isMine
-                                                  ? Colors.white
-                                                  : Colors.white,
+                                                  ? Colors.white70
+                                                  : Colors.white70,
                                             ),
                                           ),
                                         ],
