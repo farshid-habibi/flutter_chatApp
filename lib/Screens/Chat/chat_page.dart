@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:bubble/bubble.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -13,6 +14,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_chat_bubble/chat_bubble.dart';
 import 'package:flutter_chat_bubble/bubble_type.dart';
 import 'package:flutter_chat_bubble/clippers/chat_bubble_clipper_1.dart';
+import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 class ChatPage extends StatefulWidget {
   final String roomId;
@@ -29,6 +31,11 @@ class _ChatPageState extends State<ChatPage>
   final SupabaseClient _supabase = Supabase.instance.client;
   final ImagePicker _picker = ImagePicker();
   final Map<String, Future<VideoPlayerController>> _videoControllers = {};
+  Map<String, dynamic>? _replyingTo;
+  final Map<String, int> messageIndexes = {};
+  final ItemScrollController _itemScrollController = ItemScrollController();
+  final ItemPositionsListener _itemPositionsListener =
+      ItemPositionsListener.create();
 
   Stream<List<Map<String, dynamic>>>? _messageStream;
   String _currentUserId = '';
@@ -36,6 +43,9 @@ class _ChatPageState extends State<ChatPage>
   String? _chatUserName;
   late RealtimeChannel _channel;
   File? _uploadingMediaFile;
+  final Map<String, GlobalKey> messageKeys = {};
+  Map<String, bool> highlightedMessages = {};
+
 
   final Map<String, AnimationController> _animationControllers = {};
 
@@ -145,7 +155,11 @@ class _ChatPageState extends State<ChatPage>
                   ? Colors.grey.shade800
                   : Color.fromARGB(255, 131, 48, 129),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(
+                  color: const Color.fromARGB(255, 85, 220, 155),
+                  width: 2,
+                ),
               ),
               clipBehavior: Clip.antiAlias,
               child: Column(
@@ -160,7 +174,7 @@ class _ChatPageState extends State<ChatPage>
 
                     child: ClipRRect(
                       borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(12),
+                        top: Radius.circular(16),
                       ),
                       child: msg['is_video'] == true
                           ? FutureBuilder<VideoPlayerController>(
@@ -215,23 +229,23 @@ class _ChatPageState extends State<ChatPage>
                     ),
                   ),
 
-                  // متن زیر عکس
                   if (caption.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 6,
+                        horizontal: 4,
+                        vertical: 4,
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Padding(
-                            padding: const EdgeInsets.all(8.0),
+                            padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
                             child: Text(
                               displayText,
                               textDirection: TextDirection.rtl,
                               textAlign: TextAlign.justify,
                               style: const TextStyle(
+                                fontFamily: 'Vazir',
                                 color: Colors.white,
                                 fontSize: 14,
                               ),
@@ -240,28 +254,42 @@ class _ChatPageState extends State<ChatPage>
                           if (hasLongText)
                             GestureDetector(
                               onTap: () => expanded.value = !expanded.value,
-                              child: Text(
-                                isExpanded ? 'کم کردن متن' : 'ادامه',
-                                textDirection: TextDirection.rtl,
-                                style: const TextStyle(
-                                  color: Colors.blueAccent,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  12,
+                                  0,
+                                  12,
+                                  0,
+                                ),
+                                child: Text(
+                                  isExpanded ? 'کم کردن متن' : 'ادامه',
+                                  textDirection: TextDirection.rtl,
+                                  style: const TextStyle(
+                                    fontFamily: 'Vazir',
+                                    color: Colors.blueAccent,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ),
                             ),
                           const SizedBox(height: 2),
-                          Text(
-                            msg['created_at']?.toString().substring(11, 16) ??
-                                '',
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 11,
-                            ),
-                          ),
                         ],
                       ),
                     ),
+
+                  //To do
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 0, 12),
+                    child: Text(
+                      msg['created_at']?.toString().substring(11, 16) ?? '',
+                      style: const TextStyle(
+                        fontFamily: 'Vazir',
+                        color: Colors.white70,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -411,9 +439,13 @@ class _ChatPageState extends State<ChatPage>
                   style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
                     hintText: "نوشتن متن...",
-                    hintStyle: TextStyle(color: Colors.white54),
+                    hintStyle: TextStyle(
+                      color: Colors.white54,
+                      fontFamily: 'Vazir',
+                    ),
                     filled: true,
                     fillColor: Colors.grey.shade800,
+
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide.none,
@@ -428,7 +460,10 @@ class _ChatPageState extends State<ChatPage>
                       onPressed: () => Navigator.pop(context),
                       child: const Text(
                         "لغو",
-                        style: TextStyle(color: Colors.redAccent),
+                        style: TextStyle(
+                          color: Colors.redAccent,
+                          fontFamily: 'Vazir',
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -453,7 +488,6 @@ class _ChatPageState extends State<ChatPage>
       },
     ).then((captionText) {
       if (captionText != null && captionText.isNotEmpty) {
-        // اینجا متن را همراه عکس/ویدیو آپلود کن
         _uploadMediaWithCaption(mediaFile, isVideo, captionText);
       }
     });
@@ -533,6 +567,10 @@ class _ChatPageState extends State<ChatPage>
         'content': text,
         'media_url': null,
         'is_video': false,
+        if (_replyingTo != null) 'reply_to': _replyingTo!['id'],
+      });
+      setState(() {
+        _replyingTo = null; // بعد از ارسال پاک می‌شود
       });
     } catch (e) {
       ScaffoldMessenger.of(
@@ -648,12 +686,22 @@ class _ChatPageState extends State<ChatPage>
       ),
       items: [
         const PopupMenuItem<String>(
+          value: 'reply',
+          child: Row(
+            children: [
+              Icon(Icons.replay, size: 18, color: Colors.white),
+              SizedBox(width: 8),
+              Text('reply', style: TextStyle(color: Colors.white)),
+            ],
+          ),
+        ),
+        const PopupMenuItem<String>(
           value: 'copy',
           child: Row(
             children: [
-              Icon(Icons.copy, size: 18),
+              Icon(Icons.copy, size: 18, color: Colors.white),
               SizedBox(width: 8),
-              Text('کپی'),
+              Text('Copy', style: TextStyle(color: Colors.white)),
             ],
           ),
         ),
@@ -662,13 +710,16 @@ class _ChatPageState extends State<ChatPage>
             value: 'delete',
             child: Row(
               children: [
-                Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                Icon(Icons.delete_outline, size: 18, color: Colors.white),
                 SizedBox(width: 8),
-                Text('حذف', style: TextStyle(color: Colors.red)),
+                Text('delete', style: TextStyle(color: Colors.white)),
               ],
             ),
           ),
       ],
+      elevation: 4.0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
+      color: Colors.black.withOpacity(0.8),
     );
 
     if (selected == 'copy') {
@@ -695,6 +746,10 @@ class _ChatPageState extends State<ChatPage>
           context,
         ).showSnackBar(SnackBar(content: Text('خطا در حذف پیام: $e')));
       }
+    } else if (selected == 'reply') {
+      setState(() {
+        _replyingTo = msg;
+      });
     }
   }
 
@@ -705,6 +760,65 @@ class _ChatPageState extends State<ChatPage>
     return isMine
         ? Colors.grey.shade800
         : const Color.fromARGB(255, 131, 48, 129); // سرمه‌ای
+  }
+
+  void _highlightMessage(GlobalKey key) async {
+    final context = key.currentContext;
+    if (context == null) return;
+
+    final renderBox = context.findRenderObject() as RenderBox?;
+    if (renderBox == null) return;
+
+    final overlay = Overlay.of(context);
+    if (overlay == null) return;
+
+    final topLeft = renderBox.localToGlobal(Offset.zero);
+    final size = renderBox.size;
+
+    final overlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        left: topLeft.dx,
+        top: topLeft.dy,
+        width: size.width,
+        height: size.height,
+        child: IgnorePointer(
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.blueAccent, width: 3),
+              // optional: slightly transparent background
+              color: Colors.blueAccent.withOpacity(0.06),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    overlay.insert(overlayEntry);
+    // مدت زمان نمایش هایلایت (قابل تغییر)
+    await Future.delayed(const Duration(milliseconds: 700));
+    overlayEntry.remove();
+  }
+
+  Future<void> scrollToMessage(String messageId) async {
+    final index = messageIndexes[messageId];
+    if (index == null) return;
+
+    // انیمیشن نرم تا پیام مورد نظر
+    await _itemScrollController.scrollTo(
+      index: index,
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeInOut,
+      alignment: 0.3, // وسط صفحه بیاد
+    );
+
+    // افکت موقت برای جلب توجه
+    highlightMessage(index);
+  }
+
+  void highlightMessage(int index) {
+    // این رو می‌تونی داخل ویجت message bubble هندل کنی
+    // مثلاً با stateful widget که وقتی replay می‌کنی، رنگش موقت تغییر کنه.
   }
 
   @override
@@ -748,24 +862,32 @@ class _ChatPageState extends State<ChatPage>
                   WidgetsBinding.instance.addPostFrameCallback(
                     (_) => _scrollToBottom(),
                   );
-
-                  return ListView.builder(
-                    key: PageStorageKey('chat_list_${widget.roomId}'),
-                    controller: _scrollController,
+                  for (var msg in messages) {
+                    messageKeys.putIfAbsent(msg['id'], () => GlobalKey());
+                  }
+                  return ScrollablePositionedList.builder(
+                    itemScrollController: _itemScrollController,
+                    itemPositionsListener: _itemPositionsListener,
                     padding: const EdgeInsets.all(12),
                     itemCount: messages.length,
+                    reverse: false, // مثل چت واقعی از پایین به بالا
                     itemBuilder: (context, index) {
                       final msg = messages[index];
+                      final messageId = msg['id'];
+
+                      // ثبت ایندکس برای ریپلای
+                      messageIndexes[messageId] = index;
+
                       final isMine = msg['sender_id'] == _currentUserId;
 
+                      // انیمیشن هر پیام
                       final animationController =
-                          _animationControllers[msg['id']] ??
-                                AnimationController(
-                                  vsync: this,
-                                  duration: const Duration(milliseconds: 400),
-                                )
-                            ..forward();
-                      _animationControllers[msg['id']] = animationController;
+                          _animationControllers[messageId] ??
+                          (AnimationController(
+                            vsync: this,
+                            duration: const Duration(milliseconds: 400),
+                          )..forward());
+                      _animationControllers[messageId] = animationController;
 
                       return FadeTransition(
                         opacity: animationController.drive(
@@ -802,6 +924,81 @@ class _ChatPageState extends State<ChatPage>
                                             ? CrossAxisAlignment.end
                                             : CrossAxisAlignment.start,
                                         children: [
+                                          // نمایش ریپلای
+                                          if (msg['reply_to'] != null)
+                                            GestureDetector(
+                                              onTap: () async {
+                                                await scrollToMessage(
+                                                  msg['reply_to'],
+                                                );
+                                              },
+                                              child: Builder(
+                                                builder: (context) {
+                                                  final replyMsg = messages
+                                                      .firstWhere(
+                                                        (m) =>
+                                                            m['id'] ==
+                                                            msg['reply_to'],
+                                                        orElse: () => {},
+                                                      );
+                                                  if (replyMsg.isEmpty)
+                                                    return const SizedBox.shrink();
+
+                                                  final maxCardWidth =
+                                                      MediaQuery.of(
+                                                        context,
+                                                      ).size.width *
+                                                      0.65;
+
+                                                  return Container(
+                                                    constraints: BoxConstraints(
+                                                      maxWidth: maxCardWidth,
+                                                    ),
+                                                    margin:
+                                                        const EdgeInsets.only(
+                                                          bottom: 6,
+                                                        ),
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 8,
+                                                          vertical: 6,
+                                                        ),
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.black
+                                                          .withOpacity(0.15),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            8,
+                                                          ),
+                                                      border: const Border(
+                                                        left: BorderSide(
+                                                          color: Colors
+                                                              .lightBlueAccent,
+                                                          width: 3,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    child: Text(
+                                                      replyMsg['content'] ??
+                                                          '[Media]',
+                                                      maxLines: 2,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                      textDirection:
+                                                          TextDirection.rtl,
+                                                      style: const TextStyle(
+                                                        color: Colors.white70,
+                                                        fontStyle:
+                                                            FontStyle.italic,
+                                                        fontSize: 13,
+                                                      ),
+                                                    ),
+                                                  );
+                                                },
+                                              ),
+                                            ),
+
+                                          // متن اصلی پیام
                                           ConstrainedBox(
                                             constraints: BoxConstraints(
                                               maxWidth:
@@ -821,17 +1018,18 @@ class _ChatPageState extends State<ChatPage>
                                               ),
                                             ),
                                           ),
+
                                           const SizedBox(height: 4),
+
+                                          // زمان ارسال
                                           Text(
                                             msg['created_at']
                                                     ?.toString()
                                                     .substring(11, 16) ??
                                                 '',
-                                            style: TextStyle(
+                                            style: const TextStyle(
                                               fontSize: 12,
-                                              color: isMine
-                                                  ? Colors.white70
-                                                  : Colors.white70,
+                                              color: Colors.white70,
                                             ),
                                           ),
                                         ],
@@ -846,56 +1044,121 @@ class _ChatPageState extends State<ChatPage>
                 },
               ),
             ),
+
             SafeArea(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-                child: Row(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade200,
-                        shape: BoxShape.circle,
-                      ),
-                      child: IconButton(
-                        icon: const Icon(
-                          Icons.attach_file,
-                          color: Colors.black54,
+                    // ✅ نمایش نوار ریپلای بالای TextField (در صورت وجود)
+                    if (_replyingTo != null)
+                      Container(
+                        width: double.infinity,
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade300.withOpacity(0.4),
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        onPressed: _sendMedia,
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 4,
+                              height: 40,
+                              color: Colors.blueAccent,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Replying to:',
+                                    style: TextStyle(
+                                      color: Colors.blueAccent,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  Text(
+                                    _replyingTo!['content'] ?? '[Media]',
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(color: Colors.white),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.close,
+                                color: Colors.white70,
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  _replyingTo = null;
+                                });
+                              },
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    // TextField
-                    Expanded(
-                      child: TextField(
-                        controller: _controller,
-                        decoration: InputDecoration(
-                          hintText: "Write a message...",
-                          filled: true,
-                          fillColor: Colors.grey.shade100,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
+
+                    Row(
+                      children: [
+                        // 📎 دکمه فایل
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade200,
+                            shape: BoxShape.circle,
                           ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(30),
-                            borderSide: BorderSide.none,
+                          child: IconButton(
+                            icon: const Icon(
+                              Icons.attach_file,
+                              color: Colors.black54,
+                            ),
+                            onPressed: _sendMedia,
                           ),
                         ),
-                        onSubmitted: (_) => _sendMessage(),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    // دکمه ارسال پیام
-                    Container(
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Color(0xFF128C7E), // رنگ سبز WhatsApp
-                      ),
-                      child: IconButton(
-                        icon: const Icon(Icons.send, color: Colors.white),
-                        onPressed: _sendMessage,
-                      ),
+
+                        const SizedBox(width: 8),
+
+                        Expanded(
+                          child: TextField(
+                            controller: _controller,
+                            textDirection: TextDirection.rtl,
+                            textAlign: TextAlign.right,
+                            decoration: InputDecoration(
+                              hintText: "پیام خود را بنویسید...",
+                              hintStyle: const TextStyle(color: Colors.black54),
+                              filled: true,
+                              fillColor: Colors.white,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(30),
+                                borderSide: BorderSide.none,
+                              ),
+                            ),
+                            onSubmitted: (_) => _sendMessage(),
+                          ),
+                        ),
+
+                        const SizedBox(width: 8),
+
+                        Container(
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Color(0xFF128C7E), // رنگ سبز واتساپ
+                          ),
+                          child: IconButton(
+                            icon: const Icon(Icons.send, color: Colors.white),
+                            onPressed: _sendMessage,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

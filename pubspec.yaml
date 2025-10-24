@@ -50,9 +50,10 @@ dependencies:
   photo_view: ^0.15.0
   flutter_chat_bubble: ^2.0.2
   bubble: ^1.2.1
-  
-  # just_audio: ^0.9.42
+  flutter_list_view: ^1.1.29
+  scrollable_positioned_list: ^0.3.8
 
+  # just_audio: ^0.9.42
 
 dev_dependencies:
   flutter_test:
@@ -89,10 +90,10 @@ flutter:
   # "family" key with the font family name, and a "fonts" key with a
   # list giving the asset and other descriptors for the font. For
   # example:
-  # fonts:
-  #   - family: Schyler
-  #     fonts:
-  #       - asset: fonts/Schyler-Regular.ttf
+  fonts:
+    - family: Vazir
+      fonts:
+        - asset: assets/fonts/Vazir.ttf
   #       - asset: fonts/Schyler-Italic.ttf
   #         style: italic
   #   - family: Trajan Pro
