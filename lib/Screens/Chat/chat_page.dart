@@ -46,7 +46,6 @@ class _ChatPageState extends State<ChatPage>
   final Map<String, GlobalKey> messageKeys = {};
   Map<String, bool> highlightedMessages = {};
 
-
   final Map<String, AnimationController> _animationControllers = {};
 
   Future<VideoPlayerController> _getVideoController(String url) {
@@ -804,22 +803,26 @@ class _ChatPageState extends State<ChatPage>
     final index = messageIndexes[messageId];
     if (index == null) return;
 
-    // انیمیشن نرم تا پیام مورد نظر
+    // اسکرول نرم تا پیام
     await _itemScrollController.scrollTo(
       index: index,
-      duration: const Duration(milliseconds: 400),
+      duration: const Duration(milliseconds: 500),
       curve: Curves.easeInOut,
-      alignment: 0.3, // وسط صفحه بیاد
+      alignment: 0.3,
     );
 
-    // افکت موقت برای جلب توجه
-    highlightMessage(index);
+    setState(() {
+      highlightedMessages[messageId] = true;
+    });
+
+    await Future.delayed(const Duration(seconds: 1));
+
+    setState(() {
+      highlightedMessages[messageId] = false;
+    });
   }
 
-  void highlightMessage(int index) {
-    // این رو می‌تونی داخل ویجت message bubble هندل کنی
-    // مثلاً با stateful widget که وقتی replay می‌کنی، رنگش موقت تغییر کنه.
-  }
+  void highlightMessage(int index) {}
 
   @override
   Widget build(BuildContext context) {
@@ -906,11 +909,29 @@ class _ChatPageState extends State<ChatPage>
                               msg,
                               isMine,
                             ),
-                            child: Container(
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 5000),
+                              curve: Curves.easeInOut,
                               margin: const EdgeInsets.symmetric(vertical: 4),
+                              padding: highlightedMessages[msg['id']] == true
+                                  ? const EdgeInsets.all(2)
+                                  : EdgeInsets.zero,
+                              decoration: highlightedMessages[msg['id']] == true
+                                  ? BoxDecoration(
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                        color: Colors.lightBlueAccent,
+                                        width: 3,
+                                      ),
+                                      color: Colors.lightBlueAccent.withOpacity(
+                                        0.1,
+                                      ),
+                                    )
+                                  : null,
                               alignment: isMine
                                   ? Alignment.centerRight
                                   : Alignment.centerLeft,
+
                               child: msg['media_url'] != null
                                   ? _buildMediaMessage(context, msg, isMine)
                                   : Bubble(
@@ -1036,6 +1057,8 @@ class _ChatPageState extends State<ChatPage>
                                       ),
                                     ),
                             ),
+                          
+                          
                           ),
                         ),
                       );
