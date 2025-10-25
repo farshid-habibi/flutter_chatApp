@@ -45,6 +45,7 @@ class _ChatPageState extends State<ChatPage>
   File? _uploadingMediaFile;
   final Map<String, GlobalKey> messageKeys = {};
   Map<String, bool> highlightedMessages = {};
+  bool _showScrollToBottom = false;
 
   final Map<String, AnimationController> _animationControllers = {};
 
@@ -302,6 +303,21 @@ class _ChatPageState extends State<ChatPage>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _itemPositionsListener.itemPositions.addListener(() {
+      final positions = _itemPositionsListener.itemPositions.value;
+      if (positions.isEmpty) return;
+
+      final lastVisibleIndex = positions
+          .map((e) => e.index)
+          .reduce((a, b) => a > b ? a : b);
+      final isAtBottom = lastVisibleIndex >= (messageIndexes.length - 3);
+
+      if (_showScrollToBottom != !isAtBottom) {
+        setState(() {
+          _showScrollToBottom = !isAtBottom;
+        });
+      }
+    });
 
     _currentUserId = _supabase.auth.currentUser?.id ?? '';
     _loadUserName();
@@ -660,11 +676,16 @@ class _ChatPageState extends State<ChatPage>
 
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
+      if (_itemScrollController.isAttached && messageIndexes.isNotEmpty) {
+        final lastIndex = messageIndexes.values.isNotEmpty
+            ? messageIndexes.values.reduce((a, b) => a > b ? a : b)
+            : 0;
+
+        _itemScrollController.scrollTo(
+          index: lastIndex,
+          duration: const Duration(milliseconds: 400),
           curve: Curves.easeOut,
+          alignment: 0.0,
         );
       }
     });
@@ -1057,8 +1078,6 @@ class _ChatPageState extends State<ChatPage>
                                       ),
                                     ),
                             ),
-                          
-                          
                           ),
                         ),
                       );
@@ -1189,6 +1208,27 @@ class _ChatPageState extends State<ChatPage>
             ),
           ],
         ),
+        floatingActionButton: AnimatedOpacity(
+          opacity: _showScrollToBottom ? 1.0 : 0.0,
+          duration: const Duration(milliseconds: 300),
+          child: IgnorePointer(
+            ignoring: !_showScrollToBottom,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 80), // 🔹 بالا بردن دکمه
+              child: FloatingActionButton(
+                mini: true,
+                backgroundColor: Colors.grey.shade800,
+                onPressed: _scrollToBottom,
+                child: const Icon(
+                  Icons.arrow_downward,
+                  color: Colors.white,
+                  size: 25,
+                ),
+              ),
+            ),
+          ),
+        ),
+        floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       ),
     );
   }
