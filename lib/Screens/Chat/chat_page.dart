@@ -303,6 +303,8 @@ class _ChatPageState extends State<ChatPage>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+
+    // لیسنر برای دکمه اسکرول به پایین
     _itemPositionsListener.itemPositions.addListener(() {
       final positions = _itemPositionsListener.itemPositions.value;
       if (positions.isEmpty) return;
@@ -322,6 +324,7 @@ class _ChatPageState extends State<ChatPage>
     _currentUserId = _supabase.auth.currentUser?.id ?? '';
     _loadUserName();
 
+    // فقط یک بار استریم بساز
     _messageStream = _supabase
         .from('messages')
         .stream(primaryKey: ['id'])
@@ -329,30 +332,10 @@ class _ChatPageState extends State<ChatPage>
         .order('created_at', ascending: true)
         .map((data) => data.cast<Map<String, dynamic>>());
 
+    // نیازی به onPostgresChanges نیست
     _channel = _supabase.channel('room_${widget.roomId}_realtime');
-
-    _channel.onPostgresChanges(
-      event: PostgresChangeEvent.all,
-      schema: 'public',
-      table: 'messages',
-      filter: PostgresChangeFilter(
-        type: PostgresChangeFilterType.eq,
-        column: 'room_id',
-        value: widget.roomId,
-      ),
-      callback: (payload) {
-        setState(() {
-          _messageStream = _supabase
-              .from('messages')
-              .stream(primaryKey: ['id'])
-              .eq('room_id', widget.roomId)
-              .order('created_at', ascending: true)
-              .map((data) => data.cast<Map<String, dynamic>>());
-        });
-      },
-    );
-
     _channel.subscribe();
+
     _markMessagesAsRead();
   }
 
@@ -362,13 +345,20 @@ class _ChatPageState extends State<ChatPage>
     WidgetsBinding.instance.removeObserver(this);
     _controller.dispose();
     _scrollController.dispose();
+
+    // لغو سابسکرایب کانال
     _channel.unsubscribe();
+
+    // پاک کردن کنترلرهای ویدیو
     for (final future in _videoControllers.values) {
       future.then((controller) => controller.dispose());
     }
+
+    // پاک کردن انیمیشن‌ها
     for (final controller in _animationControllers.values) {
       controller.dispose();
     }
+
     super.dispose();
   }
 
@@ -750,14 +740,7 @@ class _ChatPageState extends State<ChatPage>
     } else if (selected == 'delete') {
       try {
         await _supabase.from('messages').delete().eq('id', msg['id']);
-        setState(() {
-          _messageStream = _supabase
-              .from('messages')
-              .stream(primaryKey: ['id'])
-              .eq('room_id', widget.roomId)
-              .order('created_at', ascending: true)
-              .map((data) => data.cast<Map<String, dynamic>>());
-        });
+        // ⚠️ دیگر نیازی به setState روی _messageStream نیست
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('پیام حذف شد')));
@@ -875,45 +858,57 @@ class _ChatPageState extends State<ChatPage>
               child: StreamBuilder<List<Map<String, dynamic>>>(
                 stream: _messageStream,
                 builder: (context, snapshot) {
-                  if (snapshot.hasError)
-                    // ignore: curly_braces_in_flow_control_structures
+                  if (snapshot.hasError) {
                     return Center(child: Text('Error: ${snapshot.error}'));
-                  if (!snapshot.hasData)
-                    // ignore: curly_braces_in_flow_control_structures
+                  }
+                  if (!snapshot.hasData) {
                     return const Center(child: CircularProgressIndicator());
+                  }
 
                   final messages = snapshot.data!;
-                  WidgetsBinding.instance.addPostFrameCallback(
-                    (_) => _scrollToBottom(),
-                  );
-                  for (var msg in messages) {
-                    messageKeys.putIfAbsent(msg['id'], () => GlobalKey());
+
+                  // ⚡ ثبت پیام‌های جدید فقط
+                  for (var i = 0; i < messages.length; i++) {
+                    final msg = messages[i];
+                    final messageId = msg['id'];
+
+                    if (!messageIndexes.containsKey(messageId)) {
+                      messageIndexes[messageId] = i;
+                    }
+
+                    messageKeys.putIfAbsent(messageId, () => GlobalKey());
+
+                    // ⚡ AnimationController فقط برای پیام‌های جدید
+                    _animationControllers.putIfAbsent(
+                      messageId,
+                      () => AnimationController(
+                        vsync: this,
+                        duration: const Duration(milliseconds: 400),
+                      )..forward(),
+                    );
                   }
+
+                  if (messages.length > messageIndexes.length) {
+                    WidgetsBinding.instance.addPostFrameCallback(
+                      (_) => _scrollToBottom(),
+                    );
+                  }
+
                   return ScrollablePositionedList.builder(
                     itemScrollController: _itemScrollController,
                     itemPositionsListener: _itemPositionsListener,
                     padding: const EdgeInsets.all(12),
                     itemCount: messages.length,
-                    reverse: false, // مثل چت واقعی از پایین به بالا
+                    reverse: false,
                     itemBuilder: (context, index) {
                       final msg = messages[index];
                       final messageId = msg['id'];
-
-                      // ثبت ایندکس برای ریپلای
-                      messageIndexes[messageId] = index;
-
                       final isMine = msg['sender_id'] == _currentUserId;
-
-                      // انیمیشن هر پیام
                       final animationController =
-                          _animationControllers[messageId] ??
-                          (AnimationController(
-                            vsync: this,
-                            duration: const Duration(milliseconds: 400),
-                          )..forward());
-                      _animationControllers[messageId] = animationController;
+                          _animationControllers[messageId]!;
 
                       return FadeTransition(
+                        key: ValueKey(messageId), // ⚡ Key ثابت برای هر پیام
                         opacity: animationController.drive(
                           Tween(begin: 0.0, end: 1.0),
                         ),
@@ -931,7 +926,7 @@ class _ChatPageState extends State<ChatPage>
                               isMine,
                             ),
                             child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 5000),
+                              duration: const Duration(milliseconds: 500),
                               curve: Curves.easeInOut,
                               margin: const EdgeInsets.symmetric(vertical: 4),
                               padding: highlightedMessages[msg['id']] == true
@@ -952,7 +947,6 @@ class _ChatPageState extends State<ChatPage>
                               alignment: isMine
                                   ? Alignment.centerRight
                                   : Alignment.centerLeft,
-
                               child: msg['media_url'] != null
                                   ? _buildMediaMessage(context, msg, isMine)
                                   : Bubble(
@@ -983,8 +977,9 @@ class _ChatPageState extends State<ChatPage>
                                                             msg['reply_to'],
                                                         orElse: () => {},
                                                       );
-                                                  if (replyMsg.isEmpty)
+                                                  if (replyMsg.isEmpty) {
                                                     return const SizedBox.shrink();
+                                                  }
 
                                                   final maxCardWidth =
                                                       MediaQuery.of(
