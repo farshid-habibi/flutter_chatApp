@@ -12,7 +12,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_application_1/Screens/Welcome/welcome_screen.dart';
 // import 'package:just_audio/just_audio.dart';
 
-
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({Key? key}) : super(key: key);
 
@@ -28,18 +27,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Timer? _debounce;
   Map<String, int> _unreadCounts = {};
   late RealtimeChannel _unreadChannel;
-// final AudioPlayer _player = AudioPlayer(); 
+  // final AudioPlayer _player = AudioPlayer();
 
-static const MethodChannel _soundChannel =
-    MethodChannel('com.example.flutter/notifications');
+  static const MethodChannel _soundChannel = MethodChannel(
+    'com.example.flutter/notifications',
+  );
 
-Future<void> _playNotificationSound() async {
-  try {
-    await _soundChannel.invokeMethod('playNotification');
-  } catch (e) {
-    print("❌ Error playing notification sound: $e");
+  Future<void> _playNotificationSound() async {
+    try {
+      await _soundChannel.invokeMethod('playNotification');
+    } catch (e) {
+      print("❌ Error playing notification sound: $e");
+    }
   }
-}
 
   @override
   void initState() {
@@ -70,44 +70,43 @@ Future<void> _playNotificationSound() async {
           _loadUnreadCounts();
         });
   }
-Future<void> _loadUnreadCounts() async {
-  final currentUserId = supabase.auth.currentUser!.id;
 
-  final response = await supabase.rpc(
-    'get_unread_counts',
-    params: {'current_user_id': currentUserId},
-  );
+  Future<void> _loadUnreadCounts() async {
+    final currentUserId = supabase.auth.currentUser!.id;
 
-  final countsMap = <String, int>{};
+    final response = await supabase.rpc(
+      'get_unread_counts',
+      params: {'current_user_id': currentUserId},
+    );
 
-  if (response != null && response is List) {
-    for (final r in response) {
-      final userId = r['user_id'] as String?;
-      final unreadCount = (r['unread_count'] ?? 0) as int;
-      if (userId != null && unreadCount > 0) {
-        countsMap[userId] = unreadCount;
+    final countsMap = <String, int>{};
+
+    if (response != null && response is List) {
+      for (final r in response) {
+        final userId = r['user_id'] as String?;
+        final unreadCount = (r['unread_count'] ?? 0) as int;
+        if (userId != null && unreadCount > 0) {
+          countsMap[userId] = unreadCount;
+        }
       }
     }
-  }
 
-  bool badgeIncreased = false;
-  countsMap.forEach((userId, newCount) {
-    final oldCount = _unreadCounts[userId] ?? 0;
-    if (newCount > oldCount) {
-      badgeIncreased = true;
+    bool badgeIncreased = false;
+    countsMap.forEach((userId, newCount) {
+      final oldCount = _unreadCounts[userId] ?? 0;
+      if (newCount > oldCount) {
+        badgeIncreased = true;
+      }
+    });
+
+    setState(() {
+      _unreadCounts = countsMap;
+    });
+
+    if (badgeIncreased) {
+      _playNotificationSound();
     }
-  });
-
-  setState(() {
-    _unreadCounts = countsMap;
-  });
-
-  if (badgeIncreased) {
-  _playNotificationSound();
-}
-
-}
-
+  }
 
   Future<void> _checkAndRefreshSession() async {
     final session = supabase.auth.currentSession;
@@ -266,16 +265,14 @@ Future<void> _loadUnreadCounts() async {
       ).showSnackBar(SnackBar(content: Text("Failed to update avatar: $e")));
     }
   }
-// Future<void> _playNotificationSound() async {
-//   try {
-//     await _player.setAsset('assets/sounds/notify.mp3'); // مسیر فایل داخل assets
-//     await _player.play();
-//   } catch (e) {
-//     print("❌ Error playing sound: $e");
-//   }
-// }
-
-
+  // Future<void> _playNotificationSound() async {
+  //   try {
+  //     await _player.setAsset('assets/sounds/notify.mp3'); // مسیر فایل داخل assets
+  //     await _player.play();
+  //   } catch (e) {
+  //     print("❌ Error playing sound: $e");
+  //   }
+  // }
 
   Future<void> _openChat(String otherUserId) async {
     try {
@@ -314,7 +311,9 @@ Future<void> _loadUnreadCounts() async {
 
       await Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => ChatPage(roomId: roomId)),
+        MaterialPageRoute(
+          builder: (_) => ChatPage(roomId: roomId, otherUserId: otherUserId),
+        ),
       );
 
       setState(() {
@@ -368,7 +367,7 @@ Future<void> _loadUnreadCounts() async {
 
   @override
   void dispose() {
-    // _player.dispose(); 
+    // _player.dispose();
     _unreadChannel.unsubscribe();
     _debounce?.cancel();
     super.dispose();
@@ -531,8 +530,7 @@ Future<void> _loadUnreadCounts() async {
                           ),
                           subtitle: Text(u['email'] ?? ''),
                           trailing: Stack(
-                            clipBehavior: Clip
-                                .none, 
+                            clipBehavior: Clip.none,
                             alignment: Alignment.center,
                             children: [
                               const Icon(
@@ -542,9 +540,8 @@ Future<void> _loadUnreadCounts() async {
                               ),
                               if ((_unreadCounts[u['id']] ?? 0) > 0)
                                 Positioned(
-                                  right:
-                                      4, 
-                                  top: 20,     
+                                  right: 4,
+                                  top: 20,
                                   child: Container(
                                     padding: const EdgeInsets.all(4),
                                     decoration: const BoxDecoration(

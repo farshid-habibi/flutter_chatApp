@@ -18,7 +18,9 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 class ChatPage extends StatefulWidget {
   final String roomId;
-  const ChatPage({super.key, required this.roomId});
+  final String otherUserId;
+
+  const ChatPage({super.key, required this.roomId, required this.otherUserId});
 
   @override
   State<ChatPage> createState() => _ChatPageState();
@@ -46,6 +48,8 @@ class _ChatPageState extends State<ChatPage>
   final Map<String, GlobalKey> messageKeys = {};
   Map<String, bool> highlightedMessages = {};
   bool _showScrollToBottom = false;
+  String? _chatUserAvatar;
+  bool _chatUserOnline = false;
 
   final Map<String, AnimationController> _animationControllers = {};
 
@@ -299,12 +303,25 @@ class _ChatPageState extends State<ChatPage>
     );
   }
 
+  void _setUserOnlineStatus(bool isOnline) async {
+    try {
+      await _supabase
+          .from('profiles')
+          .update({
+            'online': isOnline,
+            'last_seen': DateTime.now().toIso8601String(),
+          })
+          .eq('id', _currentUserId);
+    } catch (e) {
+      debugPrint("❌ Failed to update online status: $e");
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
-    // لیسنر برای دکمه اسکرول به پایین
     _itemPositionsListener.itemPositions.addListener(() {
       final positions = _itemPositionsListener.itemPositions.value;
       if (positions.isEmpty) return;
@@ -322,9 +339,9 @@ class _ChatPageState extends State<ChatPage>
     });
 
     _currentUserId = _supabase.auth.currentUser?.id ?? '';
-    _loadUserName();
+    _loadUserInfo();
+    _setUserOnlineStatus(true);
 
-    // فقط یک بار استریم بساز
     _messageStream = _supabase
         .from('messages')
         .stream(primaryKey: ['id'])
@@ -358,8 +375,21 @@ class _ChatPageState extends State<ChatPage>
     for (final controller in _animationControllers.values) {
       controller.dispose();
     }
-
+    _setUserOnlineStatus(false);
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (_currentUserId.isEmpty) return;
+
+    if (state == AppLifecycleState.resumed) {
+      _setUserOnlineStatus(true);
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      _setUserOnlineStatus(false);
+    }
   }
 
   Future<void> _markMessagesAsRead() async {
@@ -381,20 +411,30 @@ class _ChatPageState extends State<ChatPage>
     }
   }
 
-  Future<void> _loadUserName() async {
+  Future<void> _loadUserInfo() async {
     try {
+      debugPrint('🔹 Loading user info for ID: ${widget.otherUserId}');
+
       final data = await _supabase
-          .from('users')
-          .select('username')
-          .eq('id', widget.roomId)
+          .from('profiles')
+          .select('username, avatar_url,last_seen')
+          .eq('id', widget.otherUserId)
           .maybeSingle();
+
+      debugPrint('📦 User data: $data');
 
       setState(() {
         _chatUserName = data?['username'] ?? 'Chat Room';
+        _chatUserAvatar = data?['avatar_url'];
+        _chatUserOnline = data?['online'] ?? false;
       });
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('❌ Error loading user info: $e');
+      debugPrint(st.toString());
       setState(() {
         _chatUserName = 'Chat Room';
+        _chatUserAvatar = null;
+        _chatUserOnline = false;
       });
     }
   }
@@ -827,6 +867,68 @@ class _ChatPageState extends State<ChatPage>
   }
 
   void highlightMessage(int index) {}
+  void _showUserProfileSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.grey[900],
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Container(
+          height: 400,
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // عکس پروفایل
+              CircleAvatar(
+                radius: 80,
+                backgroundColor: Colors.grey[700],
+                backgroundImage: _chatUserAvatar != null
+                    ? NetworkImage(_chatUserAvatar!)
+                    : null,
+                child: _chatUserAvatar == null
+                    ? const Icon(Icons.person, size: 80, color: Colors.white54)
+                    : null,
+              ),
+              const SizedBox(height: 20),
+              // نام کاربر
+              Text(
+                _chatUserName ?? "User",
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                "Tap to view full profile",
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.6),
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 20),
+              // دکمه بستن
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blueAccent,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.close),
+                label: const Text("Close"),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -845,11 +947,50 @@ class _ChatPageState extends State<ChatPage>
         backgroundColor: Colors.transparent,
         appBar: AppBar(
           backgroundColor: Colors.transparent,
-          title: Text(
-            _chatUserName ?? 'Loading...',
-            style: const TextStyle(color: Colors.white),
-          ),
+          elevation: 0,
+          titleSpacing: 0,
           iconTheme: const IconThemeData(color: Colors.white),
+          title: Row(
+            children: [
+              GestureDetector(
+                onTap: () => _showUserProfileSheet(context),
+                child: CircleAvatar(
+                  radius: 20,
+                  backgroundColor: Colors.grey.shade700,
+                  backgroundImage:
+                      _chatUserAvatar != null && _chatUserAvatar!.isNotEmpty
+                      ? NetworkImage(_chatUserAvatar!)
+                      : const AssetImage('assets/images/default_avatar.png')
+                            as ImageProvider,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _chatUserName ?? 'Loading...',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Vazir',
+                    ),
+                  ),
+                  Text(
+                    _chatUserOnline ? 'Online' : 'Offline',
+                    style: TextStyle(
+                      color: _chatUserOnline
+                          ? Colors.greenAccent
+                          : Colors.white70,
+                      fontSize: 13,
+                      fontFamily: 'Vazir',
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
 
         body: Column(
@@ -1088,7 +1229,7 @@ class _ChatPageState extends State<ChatPage>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // ✅ نمایش نوار ریپلای بالای TextField (در صورت وجود)
+                    // نمایش نوار ریپلای (در صورت وجود)
                     if (_replyingTo != null)
                       Container(
                         width: double.infinity,
@@ -1141,61 +1282,95 @@ class _ChatPageState extends State<ChatPage>
                         ),
                       ),
 
-                    Row(
-                      children: [
-                        // 📎 دکمه فایل
-                        Container(
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade200,
-                            shape: BoxShape.circle,
-                          ),
-                          child: IconButton(
-                            icon: const Icon(
-                              Icons.attach_file,
-                              color: Colors.black54,
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade800,
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                if (_controller.text.isEmpty)
+                                  Positioned(
+                                    left: 0,
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 4,
+                                      ),
+                                      child: Text(
+                                        "Message",
+                                        style: TextStyle(
+                                          color: Colors.white54,
+                                          fontSize: 16,
+                                        ),
+                                        textAlign: TextAlign.left,
+                                      ),
+                                    ),
+                                  ),
+                                TextField(
+                                  controller: _controller,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                  ),
+                                  textAlign: TextAlign.right,
+                                  textDirection: TextDirection.rtl,
+                                  textAlignVertical: TextAlignVertical.center,
+                                  decoration: const InputDecoration(
+                                    border: InputBorder.none,
+                                    filled: false,
+                                    contentPadding: EdgeInsets.symmetric(
+                                      vertical: 10,
+                                    ),
+                                  ),
+                                  onChanged: (text) {
+                                    setState(() {});
+                                  },
+                                  onSubmitted: (_) => _sendMessage(),
+                                ),
+                              ],
                             ),
-                            onPressed: _sendMedia,
                           ),
-                        ),
 
-                        const SizedBox(width: 8),
+                          const SizedBox(width: 2),
 
-                        Expanded(
-                          child: TextField(
-                            controller: _controller,
-                            textDirection: TextDirection.rtl,
-                            textAlign: TextAlign.right,
-                            decoration: InputDecoration(
-                              hintText: "پیام خود را بنویسید...",
-                              hintStyle: const TextStyle(color: Colors.black54),
-                              filled: true,
-                              fillColor: Colors.white,
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 12,
+                          if (_controller.text.isEmpty) ...[
+                            IconButton(
+                              icon: const Icon(
+                                Icons.attach_file,
+                                color: Colors.white70,
                               ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(30),
-                                borderSide: BorderSide.none,
-                              ),
+                              onPressed: _sendMedia,
+                              splashRadius: 20,
                             ),
-                            onSubmitted: (_) => _sendMessage(),
-                          ),
-                        ),
-
-                        const SizedBox(width: 8),
-
-                        Container(
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Color(0xFF128C7E), // رنگ سبز واتساپ
-                          ),
-                          child: IconButton(
-                            icon: const Icon(Icons.send, color: Colors.white),
-                            onPressed: _sendMessage,
-                          ),
-                        ),
-                      ],
+                            const SizedBox(width: 2),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.mic,
+                                color: Colors.white70,
+                              ),
+                              onPressed: () {},
+                              splashRadius: 20,
+                            ),
+                          ] else ...[
+                            IconButton(
+                              icon: const Icon(
+                                Icons.send,
+                                color: Colors.greenAccent,
+                              ),
+                              onPressed: _sendMessage,
+                              splashRadius: 20,
+                            ),
+                          ],
+                        ],
+                      ),
                     ),
                   ],
                 ),
