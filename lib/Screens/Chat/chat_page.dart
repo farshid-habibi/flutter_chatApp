@@ -40,6 +40,7 @@ class _ChatPageState extends State<ChatPage>
       ItemPositionsListener.create();
 
   Stream<List<Map<String, dynamic>>>? _messageStream;
+  bool _hasScrolledToLastMessage = false;
   String _currentUserId = '';
   bool _isUploading = false;
   String? _chatUserName;
@@ -50,8 +51,135 @@ class _ChatPageState extends State<ChatPage>
   bool _showScrollToBottom = false;
   String? _chatUserAvatar;
   bool _chatUserOnline = false;
+  String? _chatUserLastSeen;
 
   final Map<String, AnimationController> _animationControllers = {};
+ Widget buildMessageContent(Map<String, dynamic> msg) {
+  final text = msg['content'] ?? '';
+  final maxWidth = MediaQuery.of(context).size.width * 0.7;
+  final isMine = (msg['sender_id'] ?? '') == _currentUserId;
+
+  // اندازه‌گیری متن
+  final textPainter = TextPainter(
+    text: TextSpan(
+      text: text,
+      style: const TextStyle(color: Colors.white, fontSize: 16),
+    ),
+    textDirection: TextDirection.rtl,
+    maxLines: 1,
+  )..layout(maxWidth: maxWidth);
+
+  final isSingleLine = textPainter.didExceedMaxLines == false;
+
+  Widget buildStatusIcon() {
+    final status = (msg['status'] ?? 'sent').toString().toLowerCase().trim();
+    IconData icon;
+    Color color;
+
+    if (status == 'read') {
+      icon = Icons.done_all;
+      color = Colors.blueAccent;
+    } else if (status == 'delivered') {
+      icon = Icons.done_all;
+      color = Colors.white54;
+    } else {
+      icon = Icons.done;
+      color = Colors.white54;
+    }
+
+    return Icon(icon, size: isSingleLine ? 18 : 16, color: color);
+  }
+
+  Widget buildTimeText() {
+    return Text(
+      msg['created_at']?.toString().substring(11, 16) ?? '',
+      style: TextStyle(
+        fontFamily: 'Vazir',
+        color: Colors.white70,
+        fontSize: isSingleLine ? 13 : 11,
+      ),
+    );
+  }
+
+  if (isSingleLine) {
+    // Row: تیک + ساعت + متن
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      textDirection: TextDirection.rtl,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: isMine
+          ? [
+              if (isMine) Padding(
+                padding: const EdgeInsets.fromLTRB(0, 0, 0, 4),
+                child: buildStatusIcon(),
+              ),
+              const SizedBox(width: 4),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(0, 0, 0, 0),
+                child: buildTimeText(),
+              ),
+              const SizedBox(width: 6),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(0, 0, 0, 5),
+                child: Text(
+                  text,
+                  textDirection: TextDirection.rtl,
+                  style: const TextStyle(color: Colors.white, fontSize: 16),
+                ),
+              ),
+            ]
+          : [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(0, 0, 0, 5),
+                child: Text(
+                  text,
+                  textDirection: TextDirection.rtl,
+                  style: const TextStyle(color: Colors.white, fontSize: 16),
+                ),
+              ),
+              const SizedBox(width: 6),
+              buildTimeText(),
+            ],
+    );
+  } else {
+    // Column: متن بالا، تیک + ساعت پایین
+    return Column(
+      crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      children: isMine
+          ? [
+              Text(
+                text,
+                softWrap: true,
+                textDirection: TextDirection.rtl,
+                textAlign: TextAlign.justify,
+                style: const TextStyle(color: Colors.white, fontSize: 16),
+              ),
+              const SizedBox(height: 4),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                textDirection: TextDirection.rtl,
+                children: [
+                  if (isMine) buildStatusIcon(),
+                  const SizedBox(width: 4),
+                  buildTimeText(),
+                ],
+              ),
+            ]
+          : [
+              Text(
+                text,
+                softWrap: true,
+                textDirection: TextDirection.rtl,
+                textAlign: TextAlign.justify,
+                style: const TextStyle(color: Colors.white, fontSize: 16),
+              ),
+              const SizedBox(height: 4),
+              buildTimeText(),
+            ],
+    );
+  }
+}
+
 
   Future<VideoPlayerController> _getVideoController(String url) {
     if (_videoControllers.containsKey(url)) {
@@ -67,6 +195,18 @@ class _ChatPageState extends State<ChatPage>
 
     _videoControllers[url] = future;
     return future;
+  }
+
+  String _formatLastSeen(String? isoTime) {
+    if (isoTime == null) return 'Unknown';
+    final dt = DateTime.parse(isoTime).toLocal();
+    final now = DateTime.now();
+
+    final diff = now.difference(dt);
+    if (diff.inMinutes < 1) return 'just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} min ago';
+    if (diff.inHours < 24) return '${diff.inHours} hours ago';
+    return '${dt.year}/${dt.month}/${dt.day}';
   }
 
   void _openMediaFullScreen(String url, bool isVideo) {
@@ -170,130 +310,136 @@ class _ChatPageState extends State<ChatPage>
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  GestureDetector(
-                    onTap: () => _openMediaFullScreen(
-                      msg['media_url'],
-                      msg['is_video'] == true,
-                    ),
-
-                    child: ClipRRect(
-                      borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(16),
+                  // 🖼 عکس یا ویدیو
+                  if (msg['media_url'] != null)
+                    GestureDetector(
+                      onTap: () => _openMediaFullScreen(
+                        msg['media_url'],
+                        msg['is_video'] == true,
                       ),
-                      child: msg['is_video'] == true
-                          ? FutureBuilder<VideoPlayerController>(
-                              future: _getVideoController(msg['media_url']),
-                              builder: (context, snapshot) {
-                                if (!snapshot.hasData) {
-                                  return Container(
-                                    width: maxCardWidth,
-                                    height: 400,
-                                    color: Colors.black26,
-                                    child: const Center(
-                                      child: CircularProgressIndicator(
-                                        color: Colors.white70,
+                      child: ClipRRect(
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(16),
+                        ),
+                        child: msg['is_video'] == true
+                            ? FutureBuilder<VideoPlayerController>(
+                                future: _getVideoController(msg['media_url']),
+                                builder: (context, snapshot) {
+                                  if (!snapshot.hasData) {
+                                    return Container(
+                                      width: maxCardWidth,
+                                      height: 400,
+                                      color: Colors.black26,
+                                      child: const Center(
+                                        child: CircularProgressIndicator(
+                                          color: Colors.white70,
+                                        ),
                                       ),
-                                    ),
-                                  );
-                                }
+                                    );
+                                  }
 
-                                final controller = snapshot.data!;
-                                final aspectRatio =
-                                    controller.value.aspectRatio == 0
-                                    ? 16 / 9
-                                    : controller.value.aspectRatio;
+                                  final controller = snapshot.data!;
+                                  final aspectRatio =
+                                      controller.value.aspectRatio == 0
+                                      ? 16 / 9
+                                      : controller.value.aspectRatio;
 
-                                return Stack(
-                                  alignment: Alignment.center,
-                                  children: [
-                                    ClipRRect(
-                                      borderRadius: const BorderRadius.vertical(
-                                        top: Radius.circular(12),
-                                      ),
-                                      child: AspectRatio(
+                                  return Stack(
+                                    alignment: Alignment.center,
+                                    children: [
+                                      AspectRatio(
                                         aspectRatio: aspectRatio,
                                         child: VideoPlayer(controller),
                                       ),
-                                    ),
-                                    const Icon(
-                                      Icons.play_circle_fill,
-                                      color: Colors.white,
-                                      size: 64,
-                                    ),
-                                  ],
-                                );
-                              },
-                            )
-                          : CachedNetworkImage(
-                              imageUrl: msg['media_url'],
-                              width: maxCardWidth,
-                              height: 400,
-                              fit: BoxFit.cover,
-                            ),
+                                      const Icon(
+                                        Icons.play_circle_fill,
+                                        color: Colors.white,
+                                        size: 64,
+                                      ),
+                                    ],
+                                  );
+                                },
+                              )
+                            : CachedNetworkImage(
+                                imageUrl: msg['media_url'],
+                                width: maxCardWidth,
+                                height: 400,
+                                fit: BoxFit.cover,
+                              ),
+                      ),
                     ),
-                  ),
 
-                  if (caption.isNotEmpty)
+                  // 📝 کپشن یا متن (در صورت وجود)
+                  if ((msg['content'] ?? '').isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 4,
+                        horizontal: 8,
+                        vertical: 6,
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
-                            child: Text(
-                              displayText,
-                              textDirection: TextDirection.rtl,
-                              textAlign: TextAlign.justify,
-                              style: const TextStyle(
-                                fontFamily: 'Vazir',
-                                color: Colors.white,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ),
-                          if (hasLongText)
-                            GestureDetector(
-                              onTap: () => expanded.value = !expanded.value,
-                              child: Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  12,
-                                  0,
-                                  12,
-                                  0,
-                                ),
-                                child: Text(
-                                  isExpanded ? 'کم کردن متن' : 'ادامه',
-                                  textDirection: TextDirection.rtl,
-                                  style: const TextStyle(
-                                    fontFamily: 'Vazir',
-                                    color: Colors.blueAccent,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          const SizedBox(height: 2),
-                        ],
+                      child: Text(
+                        msg['content'],
+                        textDirection: TextDirection.rtl,
+                        textAlign: TextAlign.justify,
+                        style: const TextStyle(
+                          fontFamily: 'Vazir',
+                          color: Colors.white,
+                          fontSize: 14,
+                        ),
                       ),
                     ),
 
-                  //To do
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 0, 0, 12),
-                    child: Text(
-                      msg['created_at']?.toString().substring(11, 16) ?? '',
-                      style: const TextStyle(
-                        fontFamily: 'Vazir',
-                        color: Colors.white70,
-                        fontSize: 11,
-                      ),
+                    padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // 🕒 ساعت پیام
+                        Text(
+                          msg['created_at']?.toString().substring(11, 16) ?? '',
+                          style: const TextStyle(
+                            fontFamily: 'Vazir',
+                            color: Colors.white70,
+                            fontSize: 11,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+
+                        // ✅ تیک‌ها فقط برای پیام‌های خود کاربر
+                        if ((msg['sender_id'] ?? '').toString().trim() ==
+                            _currentUserId.toString().trim())
+                          Builder(
+                            builder: (context) {
+                              final status = (msg['status'] ?? 'sent')
+                                  .toString()
+                                  .toLowerCase()
+                                  .trim();
+
+                              IconData icon;
+                              Color color;
+
+                              if (status == 'read') {
+                                icon = Icons.done_all;
+                                color = Colors.blueAccent;
+                              } else if (status == 'delivered') {
+                                icon = Icons.done_all;
+                                color = Colors.white54;
+                              } else {
+                                icon = Icons.done;
+                                color = Colors.white54;
+                              }
+
+                              return Icon(icon, size: 16, color: color);
+                            },
+                          ),
+                      ],
                     ),
                   ),
+
+                  // 🧱 اگر پیام هیچ محتوایی ندارد (متن و عکس خالی)
+                  if ((msg['media_url'] == null || msg['media_url'].isEmpty) &&
+                      (msg['content'] == null || msg['content'].isEmpty))
+                    const SizedBox(height: 8),
                 ],
               ),
             ),
@@ -398,13 +544,19 @@ class _ChatPageState extends State<ChatPage>
           .from('messages')
           .select('id')
           .eq('room_id', widget.roomId)
-          .neq('sender_id', _currentUserId);
+          .neq('sender_id', _currentUserId)
+          .neq('status', 'read'); // فقط پیام‌هایی که خوانده نشده‌اند
 
       for (final msg in unreadMessages) {
         await _supabase.from('message_reads').upsert({
           'message_id': msg['id'],
           'user_id': _currentUserId,
         });
+
+        await _supabase
+            .from('messages')
+            .update({'status': 'read'}) // 👈 وضعیت را تغییر بده
+            .eq('id', msg['id']);
       }
     } catch (e) {
       print("❌ Error marking messages as read: $e");
@@ -417,16 +569,25 @@ class _ChatPageState extends State<ChatPage>
 
       final data = await _supabase
           .from('profiles')
-          .select('username, avatar_url,last_seen')
+          .select('username, avatar_url,online,last_seen')
           .eq('id', widget.otherUserId)
           .maybeSingle();
+      if (_chatUserOnline) {
+        await _supabase
+            .from('messages')
+            .update({'status': 'delivered'})
+            .eq('room_id', widget.roomId)
+            .eq('sender_id', _currentUserId)
+            .eq('status', 'sent');
+      }
 
       debugPrint('📦 User data: $data');
 
       setState(() {
         _chatUserName = data?['username'] ?? 'Chat Room';
         _chatUserAvatar = data?['avatar_url'];
-        _chatUserOnline = data?['online'] ?? false;
+        _chatUserOnline = data?['online'] == true || data?['online'] == 'true';
+        _chatUserLastSeen = data?['last_seen'];
       });
     } catch (e, st) {
       debugPrint('❌ Error loading user info: $e');
@@ -565,6 +726,7 @@ class _ChatPageState extends State<ChatPage>
         'content': caption ?? '',
         'media_url': mediaUrl,
         'is_video': isVideo,
+        'status': 'sent',
       });
     } catch (e) {
       ScaffoldMessenger.of(
@@ -612,6 +774,7 @@ class _ChatPageState extends State<ChatPage>
         'content': text,
         'media_url': null,
         'is_video': false,
+        'status': 'sent',
         if (_replyingTo != null) 'reply_to': _replyingTo!['id'],
       });
       setState(() {
@@ -978,7 +1141,9 @@ class _ChatPageState extends State<ChatPage>
                     ),
                   ),
                   Text(
-                    _chatUserOnline ? 'Online' : 'Offline',
+                    _chatUserOnline
+                        ? 'Online'
+                        : 'Last seen: ${_formatLastSeen(_chatUserLastSeen)}',
                     style: TextStyle(
                       color: _chatUserOnline
                           ? Colors.greenAccent
@@ -1008,18 +1173,13 @@ class _ChatPageState extends State<ChatPage>
 
                   final messages = snapshot.data!;
 
-                  // ⚡ ثبت پیام‌های جدید فقط
                   for (var i = 0; i < messages.length; i++) {
                     final msg = messages[i];
                     final messageId = msg['id'];
 
-                    if (!messageIndexes.containsKey(messageId)) {
-                      messageIndexes[messageId] = i;
-                    }
-
+                    messageIndexes.putIfAbsent(messageId, () => i);
                     messageKeys.putIfAbsent(messageId, () => GlobalKey());
 
-                    // ⚡ AnimationController فقط برای پیام‌های جدید
                     _animationControllers.putIfAbsent(
                       messageId,
                       () => AnimationController(
@@ -1029,10 +1189,17 @@ class _ChatPageState extends State<ChatPage>
                     );
                   }
 
-                  if (messages.length > messageIndexes.length) {
-                    WidgetsBinding.instance.addPostFrameCallback(
-                      (_) => _scrollToBottom(),
-                    );
+                  if (!_hasScrolledToLastMessage && messages.isNotEmpty) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (_itemScrollController.isAttached) {
+                        _itemScrollController.scrollTo(
+                          index: messages.length - 1,
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeOut,
+                        );
+                      }
+                    });
+                    _hasScrolledToLastMessage = true;
                   }
 
                   return ScrollablePositionedList.builder(
@@ -1049,7 +1216,7 @@ class _ChatPageState extends State<ChatPage>
                           _animationControllers[messageId]!;
 
                       return FadeTransition(
-                        key: ValueKey(messageId), // ⚡ Key ثابت برای هر پیام
+                        key: ValueKey(messageId),
                         opacity: animationController.drive(
                           Tween(begin: 0.0, end: 1.0),
                         ),
@@ -1101,7 +1268,7 @@ class _ChatPageState extends State<ChatPage>
                                             ? CrossAxisAlignment.end
                                             : CrossAxisAlignment.start,
                                         children: [
-                                          // نمایش ریپلای
+                                          // 🟦 بخش reply
                                           if (msg['reply_to'] != null)
                                             GestureDetector(
                                               onTap: () async {
@@ -1118,9 +1285,8 @@ class _ChatPageState extends State<ChatPage>
                                                             msg['reply_to'],
                                                         orElse: () => {},
                                                       );
-                                                  if (replyMsg.isEmpty) {
+                                                  if (replyMsg.isEmpty)
                                                     return const SizedBox.shrink();
-                                                  }
 
                                                   final maxCardWidth =
                                                       MediaQuery.of(
@@ -1176,7 +1342,7 @@ class _ChatPageState extends State<ChatPage>
                                               ),
                                             ),
 
-                                          // متن اصلی پیام
+                                          // پیام اصلی
                                           ConstrainedBox(
                                             constraints: BoxConstraints(
                                               maxWidth:
@@ -1185,31 +1351,10 @@ class _ChatPageState extends State<ChatPage>
                                                   ).size.width *
                                                   0.7,
                                             ),
-                                            child: Text(
-                                              msg['content'] ?? '',
-                                              softWrap: true,
-                                              textDirection: TextDirection.rtl,
-                                              textAlign: TextAlign.justify,
-                                              style: const TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 16,
-                                              ),
-                                            ),
+                                            child: buildMessageContent(msg),
                                           ),
 
                                           const SizedBox(height: 4),
-
-                                          // زمان ارسال
-                                          Text(
-                                            msg['created_at']
-                                                    ?.toString()
-                                                    .substring(11, 16) ??
-                                                '',
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                              color: Colors.white70,
-                                            ),
-                                          ),
                                         ],
                                       ),
                                     ),
