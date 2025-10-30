@@ -818,7 +818,6 @@ class _ChatPageState extends State<ChatPage>
         final index = messages.indexWhere((m) => m['id'] == tempId);
         if (index != -1) messages[index]['status'] = 'failed';
         _isUploadingMedia = false;
-    
       });
 
       ScaffoldMessenger.of(
@@ -898,32 +897,156 @@ class _ChatPageState extends State<ChatPage>
     _scrollToBottom();
   }
 
+  Future<String?> _showCaptionBottomSheet() async {
+    final captionController = TextEditingController();
+
+    return await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.4,
+          minChildSize: 0.2,
+          maxChildSize: 0.7,
+          builder: (context, scrollController) {
+            return Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: Column(
+                children: [
+                  const Text(
+                    "Add a Caption",
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: captionController,
+                      maxLines: null,
+                      expands: true,
+                      decoration: InputDecoration(
+                        hintText:
+                            "Write something about your image or video...",
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        filled: true,
+                        fillColor: Colors.grey.shade100,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, null),
+                        child: const Text(
+                          "Cancel",
+                          style: TextStyle(color: Colors.redAccent),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      ElevatedButton(
+                        onPressed: () => Navigator.pop(
+                          context,
+                          captionController.text.trim(),
+                        ),
+                        child: const Text("Send"),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Future<void> _sendMedia() async {
     try {
       final XFile? pickedFile = await _picker.pickMedia();
       if (pickedFile == null) return;
 
       final captionController = TextEditingController();
+
       final caption = await showDialog<String>(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('افزودن توضیح'),
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Row(
+            children: const [
+              Icon(Icons.edit_note, color: Colors.blueAccent),
+              SizedBox(width: 8),
+              Text(
+                'Add a Caption',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
+          ),
           content: TextField(
             controller: captionController,
-            decoration: const InputDecoration(
-              hintText: 'توضیحی برای عکس یا ویدیو بنویس...',
-            ),
+            autofocus: true,
             textDirection: TextDirection.rtl,
+            maxLines: 3,
+            style: const TextStyle(color: Colors.black87, fontSize: 16),
+            decoration: InputDecoration(
+              hintText: 'Write something about your image or video...',
+              hintStyle: TextStyle(color: Colors.grey.shade400),
+              filled: true,
+              fillColor: Colors.grey.shade100,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 12,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+            ),
+          ),
+          actionsPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 8,
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, null),
-              child: const Text('انصراف'),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: Colors.redAccent, fontSize: 16),
+              ),
             ),
             ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blueAccent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
+              ),
               onPressed: () =>
                   Navigator.pop(context, captionController.text.trim()),
-              child: const Text('ارسال'),
+              child: const Text(
+                'Send',
+                style: TextStyle(fontSize: 16, color: Colors.white),
+              ),
             ),
           ],
         ),
@@ -945,7 +1068,7 @@ class _ChatPageState extends State<ChatPage>
       if (fileSize > limitBytes) {}
 
       await _uploadMediaWithCaption(file, isVideo, caption);
-      
+
       _scrollToBottom();
     } catch (e, st) {
       ScaffoldMessenger.of(
