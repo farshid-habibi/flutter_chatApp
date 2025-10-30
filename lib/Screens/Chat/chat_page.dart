@@ -59,6 +59,7 @@ class _ChatPageState extends State<ChatPage>
   List<Map<String, dynamic>> messages = [];
   bool _isMenuOpen = false;
   List<Map<String, dynamic>> _localMessages = [];
+  bool _isUploadingMedia = false;
 
   final Map<String, AnimationController> _animationControllers = {};
   Widget buildMessageContent(Map<String, dynamic> msg) {
@@ -291,6 +292,8 @@ class _ChatPageState extends State<ChatPage>
     final ValueNotifier<bool> expanded = ValueNotifier(false);
 
     final double maxCardWidth = MediaQuery.of(context).size.width * 0.65;
+    final bool isUploading =
+        (msg['status']?.toString().toLowerCase() ?? '') == 'uploading';
 
     return ValueListenableBuilder<bool>(
       valueListenable: expanded,
@@ -305,12 +308,12 @@ class _ChatPageState extends State<ChatPage>
             width: maxCardWidth,
             child: Card(
               color: isMine
-                  ? Color.fromARGB(255, 131, 48, 129)
+                  ? const Color.fromARGB(255, 131, 48, 129)
                   : Colors.indigo.shade800,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
-                side: BorderSide(
-                  color: const Color.fromARGB(255, 85, 220, 155),
+                side: const BorderSide(
+                  color: Color.fromARGB(255, 85, 220, 155),
                   width: 2,
                 ),
               ),
@@ -319,6 +322,7 @@ class _ChatPageState extends State<ChatPage>
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // ✅ نمایش عکس یا ویدیو (محلی یا از شبکه)
                   if (msg['media_url'] != null)
                     GestureDetector(
                       onTap: () => _openMediaFullScreen(
@@ -329,8 +333,12 @@ class _ChatPageState extends State<ChatPage>
                         borderRadius: const BorderRadius.vertical(
                           top: Radius.circular(16),
                         ),
-                        child: msg['is_video'] == true
-                            ? FutureBuilder<VideoPlayerController>(
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            // اگر ویدیو باشد
+                            if (msg['is_video'] == true)
+                              FutureBuilder<VideoPlayerController>(
                                 future: _getVideoController(msg['media_url']),
                                 builder: (context, snapshot) {
                                   if (!snapshot.hasData) {
@@ -352,31 +360,70 @@ class _ChatPageState extends State<ChatPage>
                                       ? 16 / 9
                                       : controller.value.aspectRatio;
 
-                                  return Stack(
-                                    alignment: Alignment.center,
-                                    children: [
-                                      AspectRatio(
-                                        aspectRatio: aspectRatio,
-                                        child: VideoPlayer(controller),
-                                      ),
-                                      const Icon(
-                                        Icons.play_circle_fill,
-                                        color: Colors.white,
-                                        size: 64,
-                                      ),
-                                    ],
+                                  return AspectRatio(
+                                    aspectRatio: aspectRatio,
+                                    child: VideoPlayer(controller),
                                   );
                                 },
                               )
-                            : CachedNetworkImage(
+                            // اگر عکس باشد
+                            else if (msg['media_url'].toString().startsWith(
+                              '/',
+                            ))
+                              Image.file(
+                                File(msg['media_url']),
+                                width: maxCardWidth,
+                                height: 400,
+                                fit: BoxFit.cover,
+                              )
+                            else
+                              CachedNetworkImage(
                                 imageUrl: msg['media_url'],
                                 width: maxCardWidth,
                                 height: 400,
                                 fit: BoxFit.cover,
                               ),
+
+                            // 🔄 اگر در حال آپلود است، نمایش ProgressIndicator
+                            if (isUploading)
+                              Container(
+                                width: maxCardWidth,
+                                height: 400,
+                                color: Colors.black38,
+                                child: const Center(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      CircularProgressIndicator(
+                                        color: Colors.white70,
+                                        strokeWidth: 3,
+                                      ),
+                                      SizedBox(height: 8),
+                                      Text(
+                                        'در حال آپلود...',
+                                        style: TextStyle(
+                                          fontFamily: 'Vazir',
+                                          color: Colors.white70,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+
+                            // 🎬 آیکن پخش ویدیو
+                            if (msg['is_video'] == true && !isUploading)
+                              const Icon(
+                                Icons.play_circle_fill,
+                                color: Colors.white,
+                                size: 64,
+                              ),
+                          ],
+                        ),
                       ),
                     ),
 
+                  // ✅ متن کپشن (در صورت وجود)
                   if ((msg['content'] ?? '').isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.symmetric(
@@ -384,7 +431,7 @@ class _ChatPageState extends State<ChatPage>
                         vertical: 6,
                       ),
                       child: Text(
-                        msg['content'],
+                        displayText,
                         textDirection: TextDirection.rtl,
                         textAlign: TextAlign.justify,
                         style: const TextStyle(
@@ -395,6 +442,7 @@ class _ChatPageState extends State<ChatPage>
                       ),
                     ),
 
+                  // ✅ زمان و وضعیت پیام
                   Padding(
                     padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
                     child: Row(
@@ -411,7 +459,6 @@ class _ChatPageState extends State<ChatPage>
                         ),
                         const SizedBox(width: 4),
 
-                        // ✅ تیک‌ها فقط برای پیام‌های خود کاربر
                         if ((msg['sender_id'] ?? '').toString().trim() ==
                             _currentUserId.toString().trim())
                           Builder(
@@ -424,7 +471,10 @@ class _ChatPageState extends State<ChatPage>
                               IconData icon;
                               Color color;
 
-                              if (status == 'read') {
+                              if (status == 'uploading') {
+                                icon = Icons.cloud_upload;
+                                color = Colors.orangeAccent;
+                              } else if (status == 'read') {
                                 icon = Icons.done_all;
                                 color = Colors.blueAccent;
                               } else if (status == 'delivered') {
@@ -442,7 +492,6 @@ class _ChatPageState extends State<ChatPage>
                     ),
                   ),
 
-                  // 🧱 اگر پیام هیچ محتوایی ندارد (متن و عکس خالی)
                   if ((msg['media_url'] == null || msg['media_url'].isEmpty) &&
                       (msg['content'] == null || msg['content'].isEmpty))
                     const SizedBox(height: 8),
@@ -710,9 +759,21 @@ class _ChatPageState extends State<ChatPage>
     bool isVideo,
     String? caption,
   ) async {
+    final tempId = 'local_${DateTime.now().millisecondsSinceEpoch}';
+    final tempMessage = {
+      'id': tempId,
+      'room_id': widget.roomId,
+      'sender_id': _currentUserId,
+      'content': caption ?? '',
+      'media_url': file.path, // مسیر محلی
+      'is_video': isVideo,
+      'status': 'uploading',
+      'created_at': DateTime.now().toIso8601String(),
+    };
+
     setState(() {
-      _isUploading = true;
-      _uploadingMediaFile = file;
+      messages.add(tempMessage);
+      _isUploadingMedia = true;
     });
 
     try {
@@ -734,16 +795,57 @@ class _ChatPageState extends State<ChatPage>
         'is_video': isVideo,
         'status': 'sent',
       });
+
+      setState(() {
+        final index = messages.indexWhere((m) => m['id'] == tempId);
+        if (index != -1) {
+          messages[index]['media_url'] = mediaUrl;
+          messages[index]['status'] = 'sent';
+          messages[index]['id'] =
+              'server_${DateTime.now().millisecondsSinceEpoch}';
+        }
+        _isUploadingMedia = false; // مخفی کردن ProgressBar
+      });
+
+      _showFancySnackBar(
+        message: "Image uploaded successfully!",
+        icon: Icons.check_circle,
+        colors: [Colors.green, Colors.lightGreenAccent],
+      );
+      _scrollToBottom();
     } catch (e) {
+      setState(() {
+        final index = messages.indexWhere((m) => m['id'] == tempId);
+        if (index != -1) messages[index]['status'] = 'failed';
+        _isUploadingMedia = false;
+    
+      });
+
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Failed to upload media')));
-    } finally {
-      setState(() {
-        _isUploading = false;
-        _uploadingMediaFile = null;
-      });
     }
+  }
+
+  void _showFancySnackBar({
+    required String message,
+    required IconData icon,
+    required List<Color> colors,
+  }) {
+    final overlay = Overlay.of(context);
+    late OverlayEntry overlayEntry;
+
+    overlayEntry = OverlayEntry(
+      builder: (context) => FancySnackBar(
+        message: message,
+        icon: icon,
+        duration: const Duration(seconds: 2),
+        gradientColors: colors,
+        onClose: () => overlayEntry.remove(),
+      ),
+    );
+
+    overlay?.insert(overlayEntry);
   }
 
   Future<void> _ensureMember() async {
@@ -784,7 +886,7 @@ class _ChatPageState extends State<ChatPage>
         if (_replyingTo != null) 'reply_to': _replyingTo!['id'],
       });
       setState(() {
-        _replyingTo = null; // بعد از ارسال پاک می‌شود
+        _replyingTo = null;
       });
     } catch (e) {
       ScaffoldMessenger.of(
@@ -843,6 +945,7 @@ class _ChatPageState extends State<ChatPage>
       if (fileSize > limitBytes) {}
 
       await _uploadMediaWithCaption(file, isVideo, caption);
+      
       _scrollToBottom();
     } catch (e, st) {
       ScaffoldMessenger.of(
@@ -1310,6 +1413,12 @@ class _ChatPageState extends State<ChatPage>
 
         body: Column(
           children: [
+            if (_isUploadingMedia)
+              const LinearProgressIndicator(
+                color: Colors.blueAccent,
+                minHeight: 4,
+              ),
+
             Expanded(
               child: StreamBuilder<List<Map<String, dynamic>>>(
                 stream: _messageStream,
@@ -1407,10 +1516,14 @@ class _ChatPageState extends State<ChatPage>
                               foregroundDecoration:
                                   _selectedMessageIds.contains(msg['id'])
                                   ? BoxDecoration(
-                                      color: const Color.fromARGB(255, 22, 19, 78).withOpacity(0.5),
+                                      color: const Color.fromARGB(
+                                        255,
+                                        22,
+                                        19,
+                                        78,
+                                      ).withOpacity(0.5),
                                       borderRadius: BorderRadius.circular(8),
-                                      backgroundBlendMode:
-                                          BlendMode.overlay,
+                                      backgroundBlendMode: BlendMode.overlay,
                                     )
                                   : null,
                               padding: highlightedMessages[msg['id']] == true
@@ -1690,7 +1803,7 @@ class _ChatPageState extends State<ChatPage>
           child: IgnorePointer(
             ignoring: !_showScrollToBottom,
             child: Padding(
-              padding: const EdgeInsets.only(bottom: 80), // 🔹 بالا بردن دکمه
+              padding: const EdgeInsets.only(bottom: 80),
               child: FloatingActionButton(
                 mini: true,
                 backgroundColor: Colors.grey.shade800,
