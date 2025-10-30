@@ -3,6 +3,8 @@ import 'package:bubble/bubble.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_application_1/Screens/Chat/FancySnackBarState.dart';
+import 'package:flutter_application_1/Screens/Chat/SlideTransitionWidget.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
@@ -52,134 +54,141 @@ class _ChatPageState extends State<ChatPage>
   String? _chatUserAvatar;
   bool _chatUserOnline = false;
   String? _chatUserLastSeen;
+  bool _isSelectionMode = false;
+  Set<String> _selectedMessageIds = {};
+  List<Map<String, dynamic>> messages = [];
+  bool _isMenuOpen = false;
+  List<Map<String, dynamic>> _localMessages = [];
 
   final Map<String, AnimationController> _animationControllers = {};
- Widget buildMessageContent(Map<String, dynamic> msg) {
-  final text = msg['content'] ?? '';
-  final maxWidth = MediaQuery.of(context).size.width * 0.7;
-  final isMine = (msg['sender_id'] ?? '') == _currentUserId;
+  Widget buildMessageContent(Map<String, dynamic> msg) {
+    final text = msg['content'] ?? '';
+    final maxWidth = MediaQuery.of(context).size.width * 0.7;
+    final isMine = (msg['sender_id'] ?? '') == _currentUserId;
 
-  // اندازه‌گیری متن
-  final textPainter = TextPainter(
-    text: TextSpan(
-      text: text,
-      style: const TextStyle(color: Colors.white, fontSize: 16),
-    ),
-    textDirection: TextDirection.rtl,
-    maxLines: 1,
-  )..layout(maxWidth: maxWidth);
+    // اندازه‌گیری متن
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: const TextStyle(color: Colors.white, fontSize: 16),
+      ),
+      textDirection: TextDirection.rtl,
+      maxLines: 1,
+    )..layout(maxWidth: maxWidth);
 
-  final isSingleLine = textPainter.didExceedMaxLines == false;
+    final isSingleLine = textPainter.didExceedMaxLines == false;
 
-  Widget buildStatusIcon() {
-    final status = (msg['status'] ?? 'sent').toString().toLowerCase().trim();
-    IconData icon;
-    Color color;
+    Widget buildStatusIcon() {
+      final status = (msg['status'] ?? 'sent').toString().toLowerCase().trim();
+      IconData icon;
+      Color color;
 
-    if (status == 'read') {
-      icon = Icons.done_all;
-      color = Colors.blueAccent;
-    } else if (status == 'delivered') {
-      icon = Icons.done_all;
-      color = Colors.white54;
-    } else {
-      icon = Icons.done;
-      color = Colors.white54;
+      if (status == 'read') {
+        icon = Icons.done_all;
+        color = Colors.blueAccent;
+      } else if (status == 'delivered') {
+        icon = Icons.done_all;
+        color = Colors.white54;
+      } else {
+        icon = Icons.done;
+        color = Colors.white54;
+      }
+
+      return Icon(icon, size: isSingleLine ? 18 : 16, color: color);
     }
 
-    return Icon(icon, size: isSingleLine ? 18 : 16, color: color);
-  }
+    Widget buildTimeText() {
+      return Text(
+        msg['created_at']?.toString().substring(11, 16) ?? '',
+        style: TextStyle(
+          fontFamily: 'Vazir',
+          color: Colors.white70,
+          fontSize: isSingleLine ? 13 : 11,
+        ),
+      );
+    }
 
-  Widget buildTimeText() {
-    return Text(
-      msg['created_at']?.toString().substring(11, 16) ?? '',
-      style: TextStyle(
-        fontFamily: 'Vazir',
-        color: Colors.white70,
-        fontSize: isSingleLine ? 13 : 11,
-      ),
-    );
-  }
-
-  if (isSingleLine) {
-    // Row: تیک + ساعت + متن
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      textDirection: TextDirection.rtl,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: isMine
-          ? [
-              if (isMine) Padding(
-                padding: const EdgeInsets.fromLTRB(0, 0, 0, 4),
-                child: buildStatusIcon(),
-              ),
-              const SizedBox(width: 4),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(0, 0, 0, 0),
-                child: buildTimeText(),
-              ),
-              const SizedBox(width: 6),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(0, 0, 0, 5),
-                child: Text(
+    if (isSingleLine) {
+      // Row: تیک + ساعت + متن
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        textDirection: TextDirection.rtl,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: isMine
+            ? [
+                if (isMine)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(0, 0, 0, 4),
+                    child: buildStatusIcon(),
+                  ),
+                const SizedBox(width: 4),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(0, 0, 0, 0),
+                  child: buildTimeText(),
+                ),
+                const SizedBox(width: 6),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(0, 0, 0, 5),
+                  child: Text(
+                    text,
+                    textDirection: TextDirection.rtl,
+                    style: const TextStyle(color: Colors.white, fontSize: 16),
+                  ),
+                ),
+              ]
+            : [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(0, 0, 0, 5),
+                  child: Text(
+                    text,
+                    textDirection: TextDirection.rtl,
+                    style: const TextStyle(color: Colors.white, fontSize: 16),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                buildTimeText(),
+              ],
+      );
+    } else {
+      // Column: متن بالا، تیک + ساعت پایین
+      return Column(
+        crossAxisAlignment: isMine
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
+        children: isMine
+            ? [
+                Text(
                   text,
+                  softWrap: true,
                   textDirection: TextDirection.rtl,
+                  textAlign: TextAlign.justify,
                   style: const TextStyle(color: Colors.white, fontSize: 16),
                 ),
-              ),
-            ]
-          : [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(0, 0, 0, 5),
-                child: Text(
-                  text,
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
                   textDirection: TextDirection.rtl,
+                  children: [
+                    if (isMine) buildStatusIcon(),
+                    const SizedBox(width: 4),
+                    buildTimeText(),
+                  ],
+                ),
+              ]
+            : [
+                Text(
+                  text,
+                  softWrap: true,
+                  textDirection: TextDirection.rtl,
+                  textAlign: TextAlign.justify,
                   style: const TextStyle(color: Colors.white, fontSize: 16),
                 ),
-              ),
-              const SizedBox(width: 6),
-              buildTimeText(),
-            ],
-    );
-  } else {
-    // Column: متن بالا، تیک + ساعت پایین
-    return Column(
-      crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-      children: isMine
-          ? [
-              Text(
-                text,
-                softWrap: true,
-                textDirection: TextDirection.rtl,
-                textAlign: TextAlign.justify,
-                style: const TextStyle(color: Colors.white, fontSize: 16),
-              ),
-              const SizedBox(height: 4),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                textDirection: TextDirection.rtl,
-                children: [
-                  if (isMine) buildStatusIcon(),
-                  const SizedBox(width: 4),
-                  buildTimeText(),
-                ],
-              ),
-            ]
-          : [
-              Text(
-                text,
-                softWrap: true,
-                textDirection: TextDirection.rtl,
-                textAlign: TextAlign.justify,
-                style: const TextStyle(color: Colors.white, fontSize: 16),
-              ),
-              const SizedBox(height: 4),
-              buildTimeText(),
-            ],
-    );
+                const SizedBox(height: 4),
+                buildTimeText(),
+              ],
+      );
+    }
   }
-}
-
 
   Future<VideoPlayerController> _getVideoController(String url) {
     if (_videoControllers.containsKey(url)) {
@@ -296,8 +305,8 @@ class _ChatPageState extends State<ChatPage>
             width: maxCardWidth,
             child: Card(
               color: isMine
-                  ? Colors.grey.shade800
-                  : Color.fromARGB(255, 131, 48, 129),
+                  ? Color.fromARGB(255, 131, 48, 129)
+                  : Colors.indigo.shade800,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
                 side: BorderSide(
@@ -310,7 +319,6 @@ class _ChatPageState extends State<ChatPage>
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // 🖼 عکس یا ویدیو
                   if (msg['media_url'] != null)
                     GestureDetector(
                       onTap: () => _openMediaFullScreen(
@@ -369,7 +377,6 @@ class _ChatPageState extends State<ChatPage>
                       ),
                     ),
 
-                  // 📝 کپشن یا متن (در صورت وجود)
                   if ((msg['content'] ?? '').isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.symmetric(
@@ -394,7 +401,6 @@ class _ChatPageState extends State<ChatPage>
                       mainAxisAlignment: MainAxisAlignment.end,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // 🕒 ساعت پیام
                         Text(
                           msg['created_at']?.toString().substring(11, 16) ?? '',
                           style: const TextStyle(
@@ -889,83 +895,196 @@ class _ChatPageState extends State<ChatPage>
     Map<String, dynamic> msg,
     bool isMine,
   ) async {
-    final selected = await showMenu<String>(
-      context: context,
-      position: RelativeRect.fromLTRB(
-        position.dx,
-        position.dy,
-        MediaQuery.of(context).size.width - position.dx,
-        0,
-      ),
-      items: [
-        const PopupMenuItem<String>(
-          value: 'reply',
-          child: Row(
-            children: [
-              Icon(Icons.replay, size: 18, color: Colors.white),
-              SizedBox(width: 8),
-              Text('reply', style: TextStyle(color: Colors.white)),
-            ],
-          ),
+    try {
+      final selected = await showMenu<String>(
+        context: context,
+        position: RelativeRect.fromLTRB(
+          position.dx,
+          position.dy,
+          MediaQuery.of(context).size.width - position.dx,
+          0,
         ),
-        const PopupMenuItem<String>(
-          value: 'copy',
-          child: Row(
-            children: [
-              Icon(Icons.copy, size: 18, color: Colors.white),
-              SizedBox(width: 8),
-              Text('Copy', style: TextStyle(color: Colors.white)),
-            ],
-          ),
-        ),
-        if (isMine)
+        items: [
           const PopupMenuItem<String>(
-            value: 'delete',
+            value: 'reply',
             child: Row(
               children: [
-                Icon(Icons.delete_outline, size: 18, color: Colors.white),
+                Icon(Icons.replay, size: 18, color: Colors.white),
                 SizedBox(width: 8),
-                Text('delete', style: TextStyle(color: Colors.white)),
+                Text('reply', style: TextStyle(color: Colors.white)),
               ],
             ),
           ),
-      ],
-      elevation: 4.0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
-      color: Colors.black.withOpacity(0.8),
+          const PopupMenuItem<String>(
+            value: 'copy',
+            child: Row(
+              children: [
+                Icon(Icons.copy, size: 18, color: Colors.white),
+                SizedBox(width: 8),
+                Text('Copy', style: TextStyle(color: Colors.white)),
+              ],
+            ),
+          ),
+          const PopupMenuItem<String>(
+            value: 'multi_delete',
+            child: Row(
+              children: [
+                Icon(Icons.check_box, size: 18, color: Colors.white),
+                SizedBox(width: 8),
+                Text(
+                  'Multiple selection',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ],
+            ),
+          ),
+          if (isMine)
+            const PopupMenuItem<String>(
+              value: 'delete',
+              child: Row(
+                children: [
+                  Icon(Icons.delete_outline, size: 18, color: Colors.white),
+                  SizedBox(width: 8),
+                  Text('delete', style: TextStyle(color: Colors.white)),
+                ],
+              ),
+            ),
+        ],
+        elevation: 4.0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12.0),
+        ),
+        color: Colors.black.withOpacity(0.8),
+      );
+
+      if (!mounted) return; // اگر widget حذف شده بود
+      if (selected == null) return; // منو بسته شد بدون انتخاب
+
+      if (selected == 'copy') {
+        Clipboard.setData(ClipboardData(text: msg['content'] ?? ''));
+        showCustomSnackBar(
+          context,
+          message: 'Message copied ✅',
+          background: Colors.black87,
+          icon: Icons.copy_outlined,
+        );
+      } else if (selected == 'multi_delete') {
+        setState(() {
+          _isSelectionMode = true;
+          _selectedMessageIds.clear();
+          _selectedMessageIds.add(msg['id']);
+        });
+      } else if (selected == 'delete') {
+        FocusScope.of(context).unfocus();
+        SystemChannels.textInput.invokeMethod('TextInput.hide');
+        try {
+          await _supabase.from('messages').delete().eq('id', msg['id']);
+
+          setState(() {
+            messages.removeWhere((m) => m['id'] == msg['id']);
+            _messageStream = _supabase
+                .from('messages')
+                .stream(primaryKey: ['id'])
+                .eq('room_id', widget.roomId)
+                .order('created_at', ascending: true)
+                .map((data) => data.cast<Map<String, dynamic>>());
+          });
+
+          showCustomSnackBar(
+            context,
+            message: 'Message deleted ✅',
+            background: Colors.black87,
+            icon: Icons.check_circle_outline,
+          );
+        } catch (e) {
+          showCustomSnackBar(
+            context,
+            message: 'Failed to delete message ❌',
+            background: Colors.red.shade900,
+            icon: Icons.error_outline,
+          );
+        }
+      } else if (selected == 'reply') {
+        setState(() {
+          _replyingTo = msg;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error showing message menu: $e");
+    }
+  }
+
+  Future<void> _deleteSelectedMessages() async {
+    if (_selectedMessageIds.isEmpty) return;
+    FocusScope.of(context).unfocus();
+    SystemChannels.textInput.invokeMethod('TextInput.hide');
+    try {
+      await _supabase
+          .from('messages')
+          .delete()
+          .inFilter('id', _selectedMessageIds.toList());
+
+      setState(() {
+        _isSelectionMode = false;
+        _selectedMessageIds.clear();
+      });
+
+      setState(() {
+        _messageStream = _supabase
+            .from('messages')
+            .stream(primaryKey: ['id'])
+            .eq('room_id', widget.roomId)
+            .order('created_at', ascending: true)
+            .map((data) => data.cast<Map<String, dynamic>>());
+      });
+
+      showCustomSnackBar(
+        context,
+        message: 'Selected messages deleted ',
+        background: Colors.black87,
+        icon: Icons.check_circle_outline,
+      );
+    } catch (e) {
+      showCustomSnackBar(
+        context,
+        message: 'Failed to delete messages ',
+        background: Colors.red.shade900,
+        icon: Icons.error_outline,
+      );
+    }
+  }
+
+  void showCustomSnackBar(
+    BuildContext context, {
+    required String message,
+    IconData icon = Icons.info_outline,
+    Duration duration = const Duration(seconds: 3),
+    List<Color>? gradientColors,
+    required Color background,
+  }) {
+    final overlay = Overlay.of(context);
+    late OverlayEntry overlayEntry;
+
+    overlayEntry = OverlayEntry(
+      builder: (context) => FancySnackBar(
+        message: message,
+        icon: icon,
+        duration: duration,
+        gradientColors:
+            gradientColors ??
+            [Color(0xFF6A0DAD), Color(0xFF00BFFF)], // بنفش به آبی
+        onClose: () => overlayEntry.remove(), // اینجا remove می‌کنیم
+      ),
     );
 
-    if (selected == 'copy') {
-      Clipboard.setData(ClipboardData(text: msg['content'] ?? ''));
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('پیام کپی شد')));
-    } else if (selected == 'delete') {
-      try {
-        await _supabase.from('messages').delete().eq('id', msg['id']);
-        // ⚠️ دیگر نیازی به setState روی _messageStream نیست
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('پیام حذف شد')));
-      } catch (e) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('خطا در حذف پیام: $e')));
-      }
-    } else if (selected == 'reply') {
-      setState(() {
-        _replyingTo = msg;
-      });
-    }
+    overlay.insert(overlayEntry);
   }
 
   Color _getBubbleColor(bool isMine, Map<String, dynamic> msg) {
     if (msg['media_url'] != null) {
       return Colors.transparent;
     }
-    return isMine
-        ? Colors.grey.shade800
-        : const Color.fromARGB(255, 131, 48, 129); // سرمه‌ای
+    return isMine ? Color.fromARGB(255, 131, 48, 129) : Colors.indigo.shade800;
   }
 
   void _highlightMessage(GlobalKey key) async {
@@ -1001,7 +1120,6 @@ class _ChatPageState extends State<ChatPage>
     );
 
     overlay.insert(overlayEntry);
-    // مدت زمان نمایش هایلایت (قابل تغییر)
     await Future.delayed(const Duration(milliseconds: 700));
     overlayEntry.remove();
   }
@@ -1010,7 +1128,6 @@ class _ChatPageState extends State<ChatPage>
     final index = messageIndexes[messageId];
     if (index == null) return;
 
-    // اسکرول نرم تا پیام
     await _itemScrollController.scrollTo(
       index: index,
       duration: const Duration(milliseconds: 500),
@@ -1044,7 +1161,6 @@ class _ChatPageState extends State<ChatPage>
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // عکس پروفایل
               CircleAvatar(
                 radius: 80,
                 backgroundColor: Colors.grey[700],
@@ -1056,7 +1172,6 @@ class _ChatPageState extends State<ChatPage>
                     : null,
               ),
               const SizedBox(height: 20),
-              // نام کاربر
               Text(
                 _chatUserName ?? "User",
                 style: const TextStyle(
@@ -1113,49 +1228,84 @@ class _ChatPageState extends State<ChatPage>
           elevation: 0,
           titleSpacing: 0,
           iconTheme: const IconThemeData(color: Colors.white),
-          title: Row(
-            children: [
-              GestureDetector(
-                onTap: () => _showUserProfileSheet(context),
-                child: CircleAvatar(
-                  radius: 20,
-                  backgroundColor: Colors.grey.shade700,
-                  backgroundImage:
-                      _chatUserAvatar != null && _chatUserAvatar!.isNotEmpty
-                      ? NetworkImage(_chatUserAvatar!)
-                      : const AssetImage('assets/images/default_avatar.png')
-                            as ImageProvider,
+          title: _isSelectionMode
+              ? Text(
+                  "${_selectedMessageIds.length} پیام انتخاب‌شده",
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: 'Vazir',
+                  ),
+                )
+              : Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () => _showUserProfileSheet(context),
+                      child: CircleAvatar(
+                        radius: 20,
+                        backgroundColor: Colors.grey.shade700,
+                        backgroundImage:
+                            _chatUserAvatar != null &&
+                                _chatUserAvatar!.isNotEmpty
+                            ? NetworkImage(_chatUserAvatar!)
+                            : const AssetImage(
+                                    'assets/images/default_avatar.png',
+                                  )
+                                  as ImageProvider,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _chatUserName ?? 'Loading...',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: 'Vazir',
+                          ),
+                        ),
+                        Text(
+                          _chatUserOnline
+                              ? 'Online'
+                              : 'Last seen: ${_formatLastSeen(_chatUserLastSeen)}',
+                          style: TextStyle(
+                            color: _chatUserOnline
+                                ? Colors.greenAccent
+                                : Colors.white70,
+                            fontSize: 13,
+                            fontFamily: 'Vazir',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _chatUserName ?? 'Loading...',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      fontFamily: 'Vazir',
+          actions: _isSelectionMode
+              ? [
+                  IconButton(
+                    icon: const Icon(
+                      Icons.delete_outline,
+                      color: Colors.redAccent,
                     ),
+                    tooltip: "حذف پیام‌ها",
+                    onPressed: _deleteSelectedMessages,
                   ),
-                  Text(
-                    _chatUserOnline
-                        ? 'Online'
-                        : 'Last seen: ${_formatLastSeen(_chatUserLastSeen)}',
-                    style: TextStyle(
-                      color: _chatUserOnline
-                          ? Colors.greenAccent
-                          : Colors.white70,
-                      fontSize: 13,
-                      fontFamily: 'Vazir',
-                    ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white),
+                    tooltip: "لغو انتخاب",
+                    onPressed: () {
+                      setState(() {
+                        _isSelectionMode = false;
+                        _selectedMessageIds.clear();
+                      });
+                    },
                   ),
-                ],
-              ),
-            ],
-          ),
+                ]
+              : [],
         ),
 
         body: Column(
@@ -1171,7 +1321,11 @@ class _ChatPageState extends State<ChatPage>
                     return const Center(child: CircularProgressIndicator());
                   }
 
-                  final messages = snapshot.data!;
+                  final snapshotMessages = snapshot.data!;
+                  if (messages.isEmpty ||
+                      messages.length != snapshotMessages.length) {
+                    messages = List.from(snapshotMessages);
+                  }
 
                   for (var i = 0; i < messages.length; i++) {
                     final msg = messages[i];
@@ -1233,25 +1387,47 @@ class _ChatPageState extends State<ChatPage>
                               msg,
                               isMine,
                             ),
+                            onTap: () {
+                              if (_isSelectionMode) {
+                                setState(() {
+                                  if (_selectedMessageIds.contains(msg['id'])) {
+                                    _selectedMessageIds.remove(msg['id']);
+                                    if (_selectedMessageIds.isEmpty)
+                                      _isSelectionMode = false;
+                                  } else {
+                                    _selectedMessageIds.add(msg['id']);
+                                  }
+                                });
+                              }
+                            },
                             child: AnimatedContainer(
                               duration: const Duration(milliseconds: 500),
                               curve: Curves.easeInOut,
                               margin: const EdgeInsets.symmetric(vertical: 4),
+                              foregroundDecoration:
+                                  _selectedMessageIds.contains(msg['id'])
+                                  ? BoxDecoration(
+                                      color: const Color.fromARGB(255, 22, 19, 78).withOpacity(0.5),
+                                      borderRadius: BorderRadius.circular(8),
+                                      backgroundBlendMode:
+                                          BlendMode.overlay,
+                                    )
+                                  : null,
                               padding: highlightedMessages[msg['id']] == true
                                   ? const EdgeInsets.all(2)
                                   : EdgeInsets.zero,
-                              decoration: highlightedMessages[msg['id']] == true
-                                  ? BoxDecoration(
-                                      borderRadius: BorderRadius.circular(16),
-                                      border: Border.all(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(16),
+                                border: highlightedMessages[msg['id']] == true
+                                    ? Border.all(
                                         color: Colors.lightBlueAccent,
                                         width: 3,
-                                      ),
-                                      color: Colors.lightBlueAccent.withOpacity(
-                                        0.1,
-                                      ),
-                                    )
-                                  : null,
+                                      )
+                                    : null,
+                                color: highlightedMessages[msg['id']] == true
+                                    ? Colors.lightBlueAccent.withOpacity(0.1)
+                                    : Colors.transparent,
+                              ),
                               alignment: isMine
                                   ? Alignment.centerRight
                                   : Alignment.centerLeft,
@@ -1268,7 +1444,6 @@ class _ChatPageState extends State<ChatPage>
                                             ? CrossAxisAlignment.end
                                             : CrossAxisAlignment.start,
                                         children: [
-                                          // 🟦 بخش reply
                                           if (msg['reply_to'] != null)
                                             GestureDetector(
                                               onTap: () async {
@@ -1288,16 +1463,7 @@ class _ChatPageState extends State<ChatPage>
                                                   if (replyMsg.isEmpty)
                                                     return const SizedBox.shrink();
 
-                                                  final maxCardWidth =
-                                                      MediaQuery.of(
-                                                        context,
-                                                      ).size.width *
-                                                      0.65;
-
                                                   return Container(
-                                                    constraints: BoxConstraints(
-                                                      maxWidth: maxCardWidth,
-                                                    ),
                                                     margin:
                                                         const EdgeInsets.only(
                                                           bottom: 6,
@@ -1328,8 +1494,6 @@ class _ChatPageState extends State<ChatPage>
                                                       maxLines: 2,
                                                       overflow:
                                                           TextOverflow.ellipsis,
-                                                      textDirection:
-                                                          TextDirection.rtl,
                                                       style: const TextStyle(
                                                         color: Colors.white70,
                                                         fontStyle:
@@ -1341,8 +1505,6 @@ class _ChatPageState extends State<ChatPage>
                                                 },
                                               ),
                                             ),
-
-                                          // پیام اصلی
                                           ConstrainedBox(
                                             constraints: BoxConstraints(
                                               maxWidth:
@@ -1353,7 +1515,6 @@ class _ChatPageState extends State<ChatPage>
                                             ),
                                             child: buildMessageContent(msg),
                                           ),
-
                                           const SizedBox(height: 4),
                                         ],
                                       ),
