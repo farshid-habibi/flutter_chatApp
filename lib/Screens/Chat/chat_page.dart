@@ -60,24 +60,23 @@ class _ChatPageState extends State<ChatPage>
   bool _isMenuOpen = false;
   List<Map<String, dynamic>> _localMessages = [];
   bool _isUploadingMedia = false;
+  bool _isSearchMode = false;
+  String _searchQuery = '';
+  final TextEditingController _searchController = TextEditingController();
 
   final Map<String, AnimationController> _animationControllers = {};
+  Map<String, bool> _expandedMessages = {};
+
   Widget buildMessageContent(Map<String, dynamic> msg) {
     final text = msg['content'] ?? '';
-    final maxWidth = MediaQuery.of(context).size.width * 0.7;
     final isMine = (msg['sender_id'] ?? '') == _currentUserId;
+    const int previewLength = 80;
+    final bool needsTruncate = text.length > previewLength;
+    final bool isExpanded = _expandedMessages[msg['id']] ?? false;
 
-    // اندازه‌گیری متن
-    final textPainter = TextPainter(
-      text: TextSpan(
-        text: text,
-        style: const TextStyle(color: Colors.white, fontSize: 16),
-      ),
-      textDirection: TextDirection.rtl,
-      maxLines: 1,
-    )..layout(maxWidth: maxWidth);
-
-    final isSingleLine = textPainter.didExceedMaxLines == false;
+    final displayText = (!needsTruncate || isExpanded)
+        ? text
+        : '${text.substring(0, previewLength)}...';
 
     Widget buildStatusIcon() {
       final status = (msg['status'] ?? 'sent').toString().toLowerCase().trim();
@@ -95,100 +94,47 @@ class _ChatPageState extends State<ChatPage>
         color = Colors.white54;
       }
 
-      return Icon(icon, size: isSingleLine ? 18 : 16, color: color);
+      return Icon(icon, size: 16, color: color);
     }
 
-    Widget buildTimeText() {
-      return Text(
-        msg['created_at']?.toString().substring(11, 16) ?? '',
-        style: TextStyle(
-          fontFamily: 'Vazir',
-          color: Colors.white70,
-          fontSize: isSingleLine ? 13 : 11,
+    return Column(
+      crossAxisAlignment: isMine
+          ? CrossAxisAlignment.end
+          : CrossAxisAlignment.start,
+      children: [
+        Text(
+          displayText,
+          style: const TextStyle(color: Colors.white, fontSize: 16),
+          textDirection: TextDirection.rtl,
+          textAlign: TextAlign.justify,
         ),
-      );
-    }
-
-    if (isSingleLine) {
-      // Row: تیک + ساعت + متن
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        textDirection: TextDirection.rtl,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: isMine
-            ? [
-                if (isMine)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(0, 0, 0, 4),
-                    child: buildStatusIcon(),
-                  ),
-                const SizedBox(width: 4),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(0, 0, 0, 0),
-                  child: buildTimeText(),
-                ),
-                const SizedBox(width: 6),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(0, 0, 0, 5),
-                  child: Text(
-                    text,
-                    textDirection: TextDirection.rtl,
-                    style: const TextStyle(color: Colors.white, fontSize: 16),
-                  ),
-                ),
-              ]
-            : [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(0, 0, 0, 5),
-                  child: Text(
-                    text,
-                    textDirection: TextDirection.rtl,
-                    style: const TextStyle(color: Colors.white, fontSize: 16),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                buildTimeText(),
-              ],
-      );
-    } else {
-      // Column: متن بالا، تیک + ساعت پایین
-      return Column(
-        crossAxisAlignment: isMine
-            ? CrossAxisAlignment.end
-            : CrossAxisAlignment.start,
-        children: isMine
-            ? [
-                Text(
-                  text,
-                  softWrap: true,
-                  textDirection: TextDirection.rtl,
-                  textAlign: TextAlign.justify,
-                  style: const TextStyle(color: Colors.white, fontSize: 16),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  textDirection: TextDirection.rtl,
-                  children: [
-                    if (isMine) buildStatusIcon(),
-                    const SizedBox(width: 4),
-                    buildTimeText(),
-                  ],
-                ),
-              ]
-            : [
-                Text(
-                  text,
-                  softWrap: true,
-                  textDirection: TextDirection.rtl,
-                  textAlign: TextAlign.justify,
-                  style: const TextStyle(color: Colors.white, fontSize: 16),
-                ),
-                const SizedBox(height: 4),
-                buildTimeText(),
-              ],
-      );
-    }
+        // دکمه Show more / Show less
+        if (needsTruncate)
+          GestureDetector(
+            onTap: () {
+              setState(() {
+                _expandedMessages[msg['id']] = !isExpanded;
+              });
+            },
+            child: Text(
+              isExpanded ? "Show less" : "Show more",
+              style: const TextStyle(color: Colors.blueAccent, fontSize: 12),
+            ),
+          ),
+        const SizedBox(height: 4),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (isMine) buildStatusIcon(),
+            const SizedBox(width: 4),
+            Text(
+              msg['created_at']?.toString().substring(11, 16) ?? '',
+              style: const TextStyle(fontSize: 11, color: Colors.white70),
+            ),
+          ],
+        ),
+      ],
+    );
   }
 
   Future<VideoPlayerController> _getVideoController(String url) {
@@ -281,64 +227,62 @@ class _ChatPageState extends State<ChatPage>
     );
   }
 
+  Map<String, bool> _expandedCaptions = {}; // ذخیره وضعیت expand کپشن‌ها
+
   Widget _buildMediaMessage(
     BuildContext context,
     Map<String, dynamic> msg,
     bool isMine,
   ) {
     final caption = msg['content'] ?? '';
-    final int minPreviewLength = 150;
-    final bool hasLongText = caption.length > minPreviewLength;
-    final ValueNotifier<bool> expanded = ValueNotifier(false);
+    final int previewLength = 80;
+    final bool needsTruncate = caption.length > previewLength;
+    final bool isExpanded = _expandedCaptions[msg['id']] ?? false;
+
+    final displayText = (!needsTruncate || isExpanded)
+        ? caption
+        : '${caption.substring(0, previewLength)}...';
 
     final double maxCardWidth = MediaQuery.of(context).size.width * 0.65;
     final bool isUploading =
         (msg['status']?.toString().toLowerCase() ?? '') == 'uploading';
 
-    return ValueListenableBuilder<bool>(
-      valueListenable: expanded,
-      builder: (context, isExpanded, _) {
-        final String displayText = hasLongText && !isExpanded
-            ? '${caption.substring(0, minPreviewLength)}...'
-            : caption;
-        return Container(
-          margin: const EdgeInsets.symmetric(vertical: 4),
-          alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
-          child: Container(
-            width: maxCardWidth,
-            child: Card(
-              color: isMine
-                  ? const Color.fromARGB(255, 131, 48, 129)
-                  : Colors.indigo.shade800,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-                side: const BorderSide(
-                  color: Color.fromARGB(255, 85, 220, 155),
-                  width: 2,
-                ),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // ✅ نمایش عکس یا ویدیو (محلی یا از شبکه)
-                  if (msg['media_url'] != null)
-                    GestureDetector(
-                      onTap: () => _openMediaFullScreen(
-                        msg['media_url'],
-                        msg['is_video'] == true,
-                      ),
-                      child: ClipRRect(
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(16),
-                        ),
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            // اگر ویدیو باشد
-                            if (msg['is_video'] == true)
-                              FutureBuilder<VideoPlayerController>(
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        width: maxCardWidth,
+        child: Card(
+          color: isMine ? Colors.purple : Colors.indigo.shade800,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(
+              color: Color.fromARGB(255, 85, 220, 155),
+              width: 2,
+            ),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            crossAxisAlignment: isMine
+                ? CrossAxisAlignment.end
+                : CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (msg['media_url'] != null)
+                GestureDetector(
+                  onTap: () => _openMediaFullScreen(
+                    msg['media_url'],
+                    msg['is_video'] == true,
+                  ),
+                  child: ClipRRect(
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(16),
+                    ),
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        msg['is_video'] == true
+                            ? FutureBuilder<VideoPlayerController>(
                                 future: _getVideoController(msg['media_url']),
                                 builder: (context, snapshot) {
                                   if (!snapshot.hasData) {
@@ -353,154 +297,148 @@ class _ChatPageState extends State<ChatPage>
                                       ),
                                     );
                                   }
-
                                   final controller = snapshot.data!;
-                                  final aspectRatio =
-                                      controller.value.aspectRatio == 0
-                                      ? 16 / 9
-                                      : controller.value.aspectRatio;
-
                                   return AspectRatio(
-                                    aspectRatio: aspectRatio,
+                                    aspectRatio:
+                                        controller.value.aspectRatio == 0
+                                        ? 16 / 9
+                                        : controller.value.aspectRatio,
                                     child: VideoPlayer(controller),
                                   );
                                 },
                               )
-                            // اگر عکس باشد
-                            else if (msg['media_url'].toString().startsWith(
-                              '/',
-                            ))
-                              Image.file(
+                            : msg['media_url'].toString().startsWith('/')
+                            ? Image.file(
                                 File(msg['media_url']),
                                 width: maxCardWidth,
                                 height: 400,
                                 fit: BoxFit.cover,
                               )
-                            else
-                              CachedNetworkImage(
+                            : CachedNetworkImage(
                                 imageUrl: msg['media_url'],
                                 width: maxCardWidth,
                                 height: 400,
                                 fit: BoxFit.cover,
                               ),
 
-                            // 🔄 اگر در حال آپلود است، نمایش ProgressIndicator
-                            if (isUploading)
-                              Container(
-                                width: maxCardWidth,
-                                height: 400,
-                                color: Colors.black38,
-                                child: const Center(
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      CircularProgressIndicator(
-                                        color: Colors.white70,
-                                        strokeWidth: 3,
-                                      ),
-                                      SizedBox(height: 8),
-                                      Text(
-                                        'در حال آپلود...',
-                                        style: TextStyle(
-                                          fontFamily: 'Vazir',
-                                          color: Colors.white70,
-                                        ),
-                                      ),
-                                    ],
+                        if (isUploading)
+                          Container(
+                            width: maxCardWidth,
+                            height: 400,
+                            color: Colors.black38,
+                            child: const Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  CircularProgressIndicator(
+                                    color: Colors.white70,
+                                    strokeWidth: 3,
                                   ),
-                                ),
+                                  SizedBox(height: 8),
+                                  Text(
+                                    'در حال آپلود...',
+                                    style: TextStyle(color: Colors.white70),
+                                  ),
+                                ],
                               ),
-
-                            // 🎬 آیکن پخش ویدیو
-                            if (msg['is_video'] == true && !isUploading)
-                              const Icon(
-                                Icons.play_circle_fill,
-                                color: Colors.white,
-                                size: 64,
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                  // ✅ متن کپشن (در صورت وجود)
-                  if ((msg['content'] ?? '').isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 6,
-                      ),
-                      child: Text(
-                        displayText,
-                        textDirection: TextDirection.rtl,
-                        textAlign: TextAlign.justify,
-                        style: const TextStyle(
-                          fontFamily: 'Vazir',
-                          color: Colors.white,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ),
-
-                  // ✅ زمان و وضعیت پیام
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          msg['created_at']?.toString().substring(11, 16) ?? '',
-                          style: const TextStyle(
-                            fontFamily: 'Vazir',
-                            color: Colors.white70,
-                            fontSize: 11,
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 4),
 
-                        if ((msg['sender_id'] ?? '').toString().trim() ==
-                            _currentUserId.toString().trim())
-                          Builder(
-                            builder: (context) {
-                              final status = (msg['status'] ?? 'sent')
-                                  .toString()
-                                  .toLowerCase()
-                                  .trim();
-
-                              IconData icon;
-                              Color color;
-
-                              if (status == 'uploading') {
-                                icon = Icons.cloud_upload;
-                                color = Colors.orangeAccent;
-                              } else if (status == 'read') {
-                                icon = Icons.done_all;
-                                color = Colors.blueAccent;
-                              } else if (status == 'delivered') {
-                                icon = Icons.done_all;
-                                color = Colors.white54;
-                              } else {
-                                icon = Icons.done;
-                                color = Colors.white54;
-                              }
-
-                              return Icon(icon, size: 16, color: color);
-                            },
+                        if (msg['is_video'] == true && !isUploading)
+                          const Icon(
+                            Icons.play_circle_fill,
+                            color: Colors.white,
+                            size: 64,
                           ),
                       ],
                     ),
                   ),
+                ),
 
-                  if ((msg['media_url'] == null || msg['media_url'].isEmpty) &&
-                      (msg['content'] == null || msg['content'].isEmpty))
-                    const SizedBox(height: 8),
-                ],
+              if ((caption).isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Column(
+                    crossAxisAlignment: isMine
+                        ? CrossAxisAlignment.end
+                        : CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        displayText,
+                        textDirection: TextDirection.rtl,
+                        textAlign: TextAlign.justify,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                        ),
+                      ),
+                      if (needsTruncate)
+                        GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _expandedCaptions[msg['id']] = !isExpanded;
+                            });
+                          },
+                          child: Text(
+                            isExpanded ? "show less" : " show more",
+                            textDirection: TextDirection.rtl,
+                            style: const TextStyle(
+                              color: Colors.blueAccent,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      msg['created_at']?.toString().substring(11, 16) ?? '',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Colors.white70,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    if (isMine)
+                      Builder(
+                        builder: (context) {
+                          final status = (msg['status'] ?? 'sent')
+                              .toString()
+                              .toLowerCase()
+                              .trim();
+                          IconData icon;
+                          Color color;
+
+                          if (status == 'uploading') {
+                            icon = Icons.cloud_upload;
+                            color = Colors.orangeAccent;
+                          } else if (status == 'read') {
+                            icon = Icons.done_all;
+                            color = Colors.blueAccent;
+                          } else if (status == 'delivered') {
+                            icon = Icons.done_all;
+                            color = Colors.white54;
+                          } else {
+                            icon = Icons.done;
+                            color = Colors.white54;
+                          }
+                          return Icon(icon, size: 16, color: color);
+                        },
+                      ),
+                  ],
+                ),
               ),
-            ),
+            ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
@@ -1450,13 +1388,56 @@ class _ChatPageState extends State<ChatPage>
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: AppBar(
+          automaticallyImplyLeading: !_isSearchMode,
           backgroundColor: Colors.transparent,
           elevation: 0,
           titleSpacing: 0,
           iconTheme: const IconThemeData(color: Colors.white),
-          title: _isSelectionMode
+          title: _isSearchMode
+              ? Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back, color: Colors.white),
+                      onPressed: () {
+                        setState(() {
+                          _isSearchMode = false;
+                          _searchController.clear();
+                          _searchQuery = '';
+                        });
+                      },
+                    ),
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        autofocus: true,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontFamily: 'Vazir',
+                        ),
+                        textDirection: TextDirection.rtl,
+                        cursorColor: Colors.white,
+                        decoration: const InputDecoration(
+                          filled: false, // بک‌گراند حذف شد
+                          hintText: 'Search...',
+                          hintStyle: TextStyle(
+                            color: Colors.white54,
+                            fontFamily: 'Vazir',
+                          ),
+                          border: InputBorder.none,
+                         
+                        ),
+                        onChanged: (value) {
+                          setState(() {
+                            _searchQuery = value.trim();
+                          });
+                        },
+                      ),
+                    ),
+                  ],
+                )
+              : _isSelectionMode
               ? Text(
-                  "${_selectedMessageIds.length} پیام انتخاب‌شده",
+                  "${_selectedMessageIds.length} selected message",
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 16,
@@ -1531,7 +1512,42 @@ class _ChatPageState extends State<ChatPage>
                     },
                   ),
                 ]
-              : [],
+              : [
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.more_vert, color: Colors.white),
+                    color: const Color(0xFF2C2C3A),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    onSelected: (value) {
+                      if (value == 'search') {
+                        setState(() {
+                          _isSearchMode = true;
+                        });
+                      } else if (value == 'clear') {
+                        // مثلاً حذف همه چت‌ها یا گزینه‌های دیگر
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      const PopupMenuItem<String>(
+                        value: 'search',
+                        child: Row(
+                          children: [
+                            Icon(Icons.search, color: Colors.white70),
+                            SizedBox(width: 12),
+                            Text(
+                              'Search',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontFamily: 'Vazir',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
         ),
 
         body: Column(
@@ -1558,6 +1574,13 @@ class _ChatPageState extends State<ChatPage>
                       messages.length != snapshotMessages.length) {
                     messages = List.from(snapshotMessages);
                   }
+                  final filteredMessages = _searchQuery.isEmpty
+                      ? messages
+                      : messages.where((msg) {
+                          final content = (msg['content'] ?? '').toString();
+                          return content.contains(_searchQuery) ||
+                              content.contains(_searchQuery.trim());
+                        }).toList();
 
                   for (var i = 0; i < messages.length; i++) {
                     final msg = messages[i];
@@ -1592,10 +1615,10 @@ class _ChatPageState extends State<ChatPage>
                     itemScrollController: _itemScrollController,
                     itemPositionsListener: _itemPositionsListener,
                     padding: const EdgeInsets.all(12),
-                    itemCount: messages.length,
+                    itemCount: filteredMessages.length,
                     reverse: false,
                     itemBuilder: (context, index) {
-                      final msg = messages[index];
+                      final msg = filteredMessages[index];
                       final messageId = msg['id'];
                       final isMine = msg['sender_id'] == _currentUserId;
                       final animationController =
