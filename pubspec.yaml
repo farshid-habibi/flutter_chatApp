@@ -52,11 +52,14 @@ dependencies:
   bubble: ^1.2.1
   flutter_list_view: ^1.1.29
   scrollable_positioned_list: ^0.3.8
-  flutter_sound: ^9.2.13
-  permission_handler: ^11.0.1
-  path_provider: ^2.1.2
-
-  # just_audio: ^0.9.42
+  permission_handler: ^11.3.1
+  path_provider: ^2.0.14
+  
+  record: ^6.1.2
+  just_audio: ^0.9.42   # پخش صدا
+  audio_waveforms: ^1.0.5  # اختیاری برای waveform
+  uuid: ^3.0.7  
+  flutter_sound: ^9.0.0
 
 dev_dependencies:
   flutter_test:

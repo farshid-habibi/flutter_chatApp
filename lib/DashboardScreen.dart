@@ -4,6 +4,7 @@ import 'dart:convert' as RealtimePayloadType;
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_application_1/Screens/Chat/FancySnackBarState.dart';
 import 'package:flutter_application_1/Screens/Chat/chat_page.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as path;
@@ -147,10 +148,40 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final prefs = await SharedPreferences.getInstance();
       prefs.setString('savedUsers', jsonEncode(_savedUsers));
       setState(() {});
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${user['username']} added to your list')),
+
+      showCustomSnackBar(
+        context,
+        message: '${user['username']} added to your list',
+        background: Colors.black87,
+        icon: Icons.check_circle_outline,
       );
     }
+  }
+
+  void showCustomSnackBar(
+    BuildContext context, {
+    required String message,
+    IconData icon = Icons.info_outline,
+    Duration duration = const Duration(seconds: 3),
+    List<Color>? gradientColors,
+    required Color background,
+  }) {
+    final overlay = Overlay.of(context);
+    late OverlayEntry overlayEntry;
+
+    overlayEntry = OverlayEntry(
+      builder: (context) => FancySnackBar(
+        message: message,
+        icon: icon,
+        duration: duration,
+        gradientColors:
+            gradientColors ??
+            [Color(0xFF6A0DAD), Color(0xFF00BFFF)], // بنفش به آبی
+        onClose: () => overlayEntry.remove(), // اینجا remove می‌کنیم
+      ),
+    );
+
+    overlay.insert(overlayEntry);
   }
 
   Future<void> _toggleSavedUser(Map<String, dynamic> user) async {
@@ -160,13 +191,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     if (isSaved) {
       _savedUsers.removeWhere((u) => u['id'] == user['id']);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${user['username']} removed from your list')),
+      showCustomSnackBar(
+        context,
+        message: '${user['username']} removed from your list',
+        background: Colors.black87,
+        icon: Icons.check_circle_outline,
       );
     } else {
       _savedUsers.add(user);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${user['username']} added to your list')),
+      showCustomSnackBar(
+        context,
+        message: '${user['username']} added to your list',
+        background: Colors.black87,
+        icon: Icons.check_circle_outline,
       );
     }
 
@@ -257,6 +294,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text("Profile picture updated!")));
+        showCustomSnackBar(
+        context,
+        message: "Profile picture updated!",
+        background: Colors.black87,
+        icon: Icons.check_circle_outline,
+      );
     } catch (e, st) {
       print("❌ Error uploading avatar: $e");
       print("Stack trace: $st");
@@ -388,7 +431,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text("ChatterBox"),
-        backgroundColor: Colors.blueAccent,
+        backgroundColor: const Color.fromARGB(255, 66, 95, 145),
       ),
       drawer: Drawer(
         child: Column(
@@ -476,104 +519,113 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
       ),
 
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: 'Search users...',
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              onChanged: _onSearchChanged,
-            ),
+      body: Container(
+        decoration: BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage("assets/images/background.png"),
+            fit: BoxFit.cover, // تصویر تمام صفحه را پوشش می‌دهد
           ),
-          if (_isLoading)
-            const Padding(
-              padding: EdgeInsets.all(8.0),
-              child: CircularProgressIndicator(),
+        ),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: TextField(
+                decoration: InputDecoration(
+                  hintText: 'Search users...',
+                  prefixIcon: const Icon(Icons.search),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onChanged: _onSearchChanged,
+              ),
             ),
-          Expanded(
-            child: combinedUsers.isEmpty
-                ? const Center(
-                    child: Text(
-                      "No users found.",
-                      style: TextStyle(fontSize: 16),
-                    ),
-                  )
-                : ListView.builder(
-                    itemCount: combinedUsers.length,
-                    itemBuilder: (context, index) {
-                      final u = combinedUsers[index];
-                      return Card(
-                        margin: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: Colors.blueAccent,
-                            child: Text(
-                              (u['username'] ?? 'U')[0].toUpperCase(),
-                              style: const TextStyle(color: Colors.white),
-                            ),
+            if (_isLoading)
+              const Padding(
+                padding: EdgeInsets.all(8.0),
+                child: CircularProgressIndicator(),
+              ),
+            Expanded(
+              child: combinedUsers.isEmpty
+                  ? const Center(
+                      child: Text(
+                        "No users found.",
+                        style: TextStyle(fontSize: 16),
+                      ),
+                    )
+                  : ListView.builder(
+                      itemCount: combinedUsers.length,
+                      itemBuilder: (context, index) {
+                        final u = combinedUsers[index];
+                        return Card(
+                          margin: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
                           ),
-                          title: Text(
-                            u['username'] ?? '',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          subtitle: Text(u['email'] ?? ''),
-                          trailing: Stack(
-                            clipBehavior: Clip.none,
-                            alignment: Alignment.center,
-                            children: [
-                              const Icon(
-                                Icons.chat,
-                                color: Colors.blueAccent,
-                                size: 28,
+                          child: ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: Colors.blueAccent,
+                              child: Text(
+                                (u['username'] ?? 'U')[0].toUpperCase(),
+                                style: const TextStyle(color: Colors.white),
                               ),
-                              if ((_unreadCounts[u['id']] ?? 0) > 0)
-                                Positioned(
-                                  right: 4,
-                                  top: 20,
-                                  child: Container(
-                                    padding: const EdgeInsets.all(4),
-                                    decoration: const BoxDecoration(
-                                      color: Colors.red,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    constraints: const BoxConstraints(
-                                      minWidth: 18,
-                                      minHeight: 18,
-                                    ),
-                                    child: Text(
-                                      '${_unreadCounts[u['id']]}',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
+                            ),
+                            title: Text(
+                              u['username'] ?? '',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            subtitle: Text(u['email'] ?? ''),
+                            trailing: Stack(
+                              clipBehavior: Clip.none,
+                              alignment: Alignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.chat,
+                                  color: Colors.blueAccent,
+                                  size: 28,
+                                ),
+                                if ((_unreadCounts[u['id']] ?? 0) > 0)
+                                  Positioned(
+                                    right: 4,
+                                    top: 20,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(4),
+                                      decoration: const BoxDecoration(
+                                        color: Colors.red,
+                                        shape: BoxShape.circle,
                                       ),
-                                      textAlign: TextAlign.center,
+                                      constraints: const BoxConstraints(
+                                        minWidth: 18,
+                                        minHeight: 18,
+                                      ),
+                                      child: Text(
+                                        '${_unreadCounts[u['id']]}',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
                                     ),
                                   ),
-                                ),
-                            ],
+                              ],
+                            ),
+                            onTap: () => _openChat(u['id']),
+                            onLongPress: () => _toggleSavedUser(u),
                           ),
-
-                          onTap: () => _openChat(u['id']),
-                          onLongPress: () => _toggleSavedUser(u),
-                        ),
-                      );
-                    },
-                  ),
-          ),
-        ],
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }

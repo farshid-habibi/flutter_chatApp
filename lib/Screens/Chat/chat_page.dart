@@ -1,10 +1,14 @@
 import 'dart:io';
+import 'package:audio_waveforms/audio_waveforms.dart';
 import 'package:bubble/bubble.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_application_1/Screens/Chat/FancySnackBarState.dart';
 import 'package:flutter_application_1/Screens/Chat/SlideTransitionWidget.dart';
+import 'package:flutter_application_1/core/supabase_client.dart';
+import 'package:just_audio/just_audio.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
@@ -17,6 +21,9 @@ import 'package:flutter_chat_bubble/chat_bubble.dart';
 import 'package:flutter_chat_bubble/bubble_type.dart';
 import 'package:flutter_chat_bubble/clippers/chat_bubble_clipper_1.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
+import 'package:record/record.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_sound/flutter_sound.dart';
 
 class ChatPage extends StatefulWidget {
   final String roomId;
@@ -62,11 +69,21 @@ class _ChatPageState extends State<ChatPage>
   bool _isUploadingMedia = false;
   bool _isSearchMode = false;
   String _searchQuery = '';
+
   final TextEditingController _searchController = TextEditingController();
+
+  final Map<String, AudioPlayer> _audioPlayers = {};
+
+  final Map<String, PlayerController> _playerControllers = {};
 
   final Map<String, AnimationController> _animationControllers = {};
   Map<String, bool> _expandedMessages = {};
-
+  late FlutterSoundRecorder _recorder;
+  bool _isRecording = false;
+  late String _recordedFilePath;
+  late FlutterSoundPlayer _player;
+  bool _isPlaying = false;
+  bool _isRecorderInitialized = false;
   Widget buildMessageContent(Map<String, dynamic> msg) {
     final text = msg['content'] ?? '';
     final isMine = (msg['sender_id'] ?? '') == _currentUserId;
@@ -456,11 +473,151 @@ class _ChatPageState extends State<ChatPage>
     }
   }
 
+  Future<void> _initRecorder() async {
+    // گرفتن اجازه میکروفون
+    var status = await Permission.microphone.request();
+    if (!status.isGranted) {
+      print("Microphone permission denied");
+      return;
+    }
+
+    await _recorder.openRecorder();
+    _isRecorderInitialized = true;
+    print("Recorder initialized");
+  }
+
+  Future<void> _startRecording() async {
+    if (!_isRecorderInitialized) return;
+
+    // مسیر ذخیره در temp directory
+    final tempDir = await getTemporaryDirectory();
+    final path =
+        '${tempDir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.aac';
+
+    await _recorder.startRecorder(toFile: path, codec: Codec.aacADTS);
+
+    setState(() {
+      _isRecording = true;
+    });
+  }
+
+  Future<void> _stopRecording() async {
+    if (!_isRecorderInitialized) return;
+
+    final path = await _recorder.stopRecorder();
+    setState(() {
+      _isRecording = false;
+    });
+
+    print("Recording saved at: $path");
+
+    if (path != null) {
+      final file = File(path);
+      await _uploadVoiceToSupabase(file);
+    }
+  }
+
+  Future<void> _uploadVoiceToSupabase(File file) async {
+     final fileBytes = await file.readAsBytes();
+    final fileName = 'voice_${DateTime.now().millisecondsSinceEpoch}.aac';
+
+    try {
+      final response = await supabase.storage
+          .from('voice')
+          .uploadBinary(fileName, fileBytes);
+      print('Upload successful: $fileName');
+    } catch (e) {
+      print('Upload failed: $e');
+    }
+
+    final fileExt = file.path.split('.').last;
+
+    if (!await file.exists()) {
+      print("File does not exist at path: ${file.path}");
+      return;
+    }
+
+    try {
+      // آپلود فایل با اجازه overwrite
+      await _supabase.storage
+          .from('chat_media')
+          .upload(fileName, file, fileOptions: FileOptions(upsert: true));
+
+      // گرفتن لینک عمومی مستقیم
+      final publicUrl = _supabase.storage
+          .from('chat_media')
+          .getPublicUrl(fileName);
+
+      print("Public URL: $publicUrl");
+
+      // ذخیره پیام در جدول messages
+      await _supabase.from('messages').insert({
+        'room_id': widget.roomId,
+        'sender_id': _currentUserId,
+        'content': '[Voice]',
+        'media_url': publicUrl,
+        'is_video': false,
+        'is_voice': true,
+        'status': 'sent',
+        'created_at': DateTime.now().toIso8601String(),
+      });
+
+      // بروزرسانی UI
+      setState(() {
+        messages.add({
+          'id': 'local_${DateTime.now().millisecondsSinceEpoch}',
+          'room_id': widget.roomId,
+          'sender_id': _currentUserId,
+          'content': '[Voice]',
+          'media_url': publicUrl,
+          'is_video': false,
+          'is_voice': true,
+          'status': 'sent',
+          'created_at': DateTime.now().toIso8601String(),
+        });
+      });
+
+      _scrollToBottom();
+    } catch (e, st) {
+      print("Upload or DB error: $e\n$st");
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Failed to upload voice')));
+    }
+  }
+
+  Future<void> _playVoice(String url) async {
+    if (!_player.isOpen()) await _player.openPlayer();
+
+    await _player.startPlayer(
+      fromURI: url,
+      codec: Codec.aacADTS,
+      whenFinished: () {
+        setState(() => _isPlaying = false);
+      },
+    );
+
+    setState(() => _isPlaying = true);
+  }
+
+  Future<void> _openAudioModules() async {
+    await _recorder.openRecorder();
+    await _player.openPlayer();
+  }
+
+  Future<void> _requestPermissions() async {
+    final status = await Permission.microphone.request();
+    if (!status.isGranted) {
+      throw RecordingPermissionException('Microphone permission not granted');
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-
+    _recorder = FlutterSoundRecorder(); // اینجا مقداردهی شد
+    _initRecorder(); // فراخوانی async برای آماده‌سازی
     _itemPositionsListener.itemPositions.addListener(() {
       final positions = _itemPositionsListener.itemPositions.value;
       if (positions.isEmpty) return;
@@ -498,10 +655,17 @@ class _ChatPageState extends State<ChatPage>
   @override
   void dispose() {
     _markMessagesAsRead();
+    _recorder.closeRecorder();
+    _player.closePlayer();
     WidgetsBinding.instance.removeObserver(this);
     _controller.dispose();
     _scrollController.dispose();
-
+    for (final p in _audioPlayers.values) {
+      p.dispose();
+    }
+    for (final c in _playerControllers.values) {
+      c.dispose();
+    }
     // لغو سابسکرایب کانال
     _channel.unsubscribe();
 
@@ -1424,7 +1588,6 @@ class _ChatPageState extends State<ChatPage>
                             fontFamily: 'Vazir',
                           ),
                           border: InputBorder.none,
-                         
                         ),
                         onChanged: (value) {
                           setState(() {
@@ -1853,7 +2016,7 @@ class _ChatPageState extends State<ChatPage>
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade800,
+                        color: const Color.fromARGB(255, 46, 47, 107),
                         borderRadius: BorderRadius.circular(30),
                       ),
                       child: Row(
@@ -1917,11 +2080,26 @@ class _ChatPageState extends State<ChatPage>
                             ),
                             const SizedBox(width: 2),
                             IconButton(
-                              icon: const Icon(
-                                Icons.mic,
-                                color: Colors.white70,
+                              icon: Icon(
+                                _isRecording ? Icons.stop : Icons.mic,
+                                color: _isRecording
+                                    ? Colors.red
+                                    : Colors.white70,
                               ),
-                              onPressed: () {},
+                              onPressed: () async {
+                                if (!_isRecorderInitialized) {
+                                  print(
+                                    "Recorder not initialized yet! Waiting...",
+                                  );
+                                  await _initRecorder(); // اطمینان از آماده بودن رکوردر
+                                }
+
+                                if (!_isRecording) {
+                                  await _startRecording();
+                                } else {
+                                  await _stopRecording();
+                                }
+                              },
                               splashRadius: 20,
                             ),
                           ] else ...[
