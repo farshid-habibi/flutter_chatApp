@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'package:audio_waveforms/audio_waveforms.dart';
 import 'package:bubble/bubble.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -24,6 +23,7 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:record/record.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_sound/flutter_sound.dart';
+
 
 class ChatPage extends StatefulWidget {
   final String roomId;
@@ -74,15 +74,16 @@ class _ChatPageState extends State<ChatPage>
 
   final Map<String, AudioPlayer> _audioPlayers = {};
 
-  final Map<String, PlayerController> _playerControllers = {};
+
 
   final Map<String, AnimationController> _animationControllers = {};
   Map<String, bool> _expandedMessages = {};
   late FlutterSoundRecorder _recorder;
   bool _isRecording = false;
   late String _recordedFilePath;
-  late FlutterSoundPlayer _player;
+  final FlutterSoundPlayer _player = FlutterSoundPlayer();
   bool _isPlaying = false;
+  String? _currentlyPlayingId;
   bool _isRecorderInitialized = false;
   Widget buildMessageContent(Map<String, dynamic> msg) {
     final text = msg['content'] ?? '';
@@ -244,7 +245,7 @@ class _ChatPageState extends State<ChatPage>
     );
   }
 
-  Map<String, bool> _expandedCaptions = {}; // ذخیره وضعیت expand کپشن‌ها
+  Map<String, bool> _expandedCaptions = {};
 
   Widget _buildMediaMessage(
     BuildContext context,
@@ -474,7 +475,6 @@ class _ChatPageState extends State<ChatPage>
   }
 
   Future<void> _initRecorder() async {
-    // گرفتن اجازه میکروفون
     var status = await Permission.microphone.request();
     if (!status.isGranted) {
       print("Microphone permission denied");
@@ -489,7 +489,6 @@ class _ChatPageState extends State<ChatPage>
   Future<void> _startRecording() async {
     if (!_isRecorderInitialized) return;
 
-    // مسیر ذخیره در temp directory
     final tempDir = await getTemporaryDirectory();
     final path =
         '${tempDir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.aac';
@@ -518,7 +517,7 @@ class _ChatPageState extends State<ChatPage>
   }
 
   Future<void> _uploadVoiceToSupabase(File file) async {
-     final fileBytes = await file.readAsBytes();
+    final fileBytes = await file.readAsBytes();
     final fileName = 'voice_${DateTime.now().millisecondsSinceEpoch}.aac';
 
     try {
@@ -538,19 +537,10 @@ class _ChatPageState extends State<ChatPage>
     }
 
     try {
-      // آپلود فایل با اجازه overwrite
-      await _supabase.storage
-          .from('chat_media')
-          .upload(fileName, file, fileOptions: FileOptions(upsert: true));
-
-      // گرفتن لینک عمومی مستقیم
-      final publicUrl = _supabase.storage
-          .from('chat_media')
-          .getPublicUrl(fileName);
+      final publicUrl = _supabase.storage.from('voice').getPublicUrl(fileName);
 
       print("Public URL: $publicUrl");
 
-      // ذخیره پیام در جدول messages
       await _supabase.from('messages').insert({
         'room_id': widget.roomId,
         'sender_id': _currentUserId,
@@ -586,18 +576,41 @@ class _ChatPageState extends State<ChatPage>
     }
   }
 
-  Future<void> _playVoice(String url) async {
-    if (!_player.isOpen()) await _player.openPlayer();
+  Future<void> _playVoice(String messageId, String url) async {
+    try {
+      // اگر همین ویس در حال پخش است، متوقفش کن
+      if (_currentlyPlayingId == messageId && _isPlaying) {
+        await _player.stopPlayer();
+        setState(() {
+          _isPlaying = false;
+          _currentlyPlayingId = null;
+        });
+        return;
+      }
 
-    await _player.startPlayer(
-      fromURI: url,
-      codec: Codec.aacADTS,
-      whenFinished: () {
-        setState(() => _isPlaying = false);
-      },
-    );
+      // اگر ویس دیگه‌ای در حال پخش بود، اون رو قطع کن
+      if (_isPlaying) {
+        await _player.stopPlayer();
+      }
 
-    setState(() => _isPlaying = true);
+      await _player.startPlayer(
+        fromURI: url,
+        codec: Codec.aacADTS,
+        whenFinished: () {
+          setState(() {
+            _isPlaying = false;
+            _currentlyPlayingId = null;
+          });
+        },
+      );
+
+      setState(() {
+        _isPlaying = true;
+        _currentlyPlayingId = messageId;
+      });
+    } catch (e) {
+      print('❌ خطا در پخش ویس: $e');
+    }
   }
 
   Future<void> _openAudioModules() async {
@@ -617,7 +630,8 @@ class _ChatPageState extends State<ChatPage>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _recorder = FlutterSoundRecorder(); // اینجا مقداردهی شد
-    _initRecorder(); // فراخوانی async برای آماده‌سازی
+    _initRecorder();
+    _player.openPlayer();
     _itemPositionsListener.itemPositions.addListener(() {
       final positions = _itemPositionsListener.itemPositions.value;
       if (positions.isEmpty) return;
@@ -663,9 +677,7 @@ class _ChatPageState extends State<ChatPage>
     for (final p in _audioPlayers.values) {
       p.dispose();
     }
-    for (final c in _playerControllers.values) {
-      c.dispose();
-    }
+
     // لغو سابسکرایب کانال
     _channel.unsubscribe();
 
@@ -1786,6 +1798,8 @@ class _ChatPageState extends State<ChatPage>
                       final isMine = msg['sender_id'] == _currentUserId;
                       final animationController =
                           _animationControllers[messageId]!;
+                      final isVoice = msg['is_voice'] == true;
+                      final mediaUrl = msg['media_url'] ?? '';
 
                       return FadeTransition(
                         key: ValueKey(messageId),
@@ -1853,7 +1867,99 @@ class _ChatPageState extends State<ChatPage>
                               alignment: isMine
                                   ? Alignment.centerRight
                                   : Alignment.centerLeft,
-                              child: msg['media_url'] != null
+
+                              child: isVoice && mediaUrl.isNotEmpty
+                                  ? Align(
+                                      alignment: isMine
+                                          ? Alignment.centerRight
+                                          : Alignment.centerLeft,
+                                      child: Container(
+                                        margin: const EdgeInsets.symmetric(
+                                          vertical: 6,
+                                        ),
+                                        padding: const EdgeInsets.all(10),
+                                        decoration: BoxDecoration(
+                                          color: isMine
+                                              ? Colors.deepPurpleAccent
+                                              : Colors.indigo.shade700,
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            IconButton(
+                                              icon: Icon(
+                                                // فقط برای همون پیام حالت پلی/پاز رو تغییر بده
+                                                _currentlyPlayingId ==
+                                                            messageId &&
+                                                        _isPlaying
+                                                    ? Icons.pause_circle_filled
+                                                    : Icons.play_circle_fill,
+                                                color: Colors.white,
+                                                size: 32,
+                                              ),
+                                              onPressed: () async {
+                                                // اگر همین ویس در حال پخشه، قطعش کن
+                                                if (_currentlyPlayingId ==
+                                                        messageId &&
+                                                    _isPlaying) {
+                                                  await _player.stopPlayer();
+                                                  setState(() {
+                                                    _isPlaying = false;
+                                                    _currentlyPlayingId = null;
+                                                  });
+                                                } else {
+                                                  // اگر ویس دیگه‌ای در حال پخشه، اون رو قطع کن
+                                                  if (_isPlaying) {
+                                                    await _player.stopPlayer();
+                                                  }
+
+                                                  try {
+                                                    await _player.startPlayer(
+                                                      fromURI: mediaUrl,
+                                                      codec: Codec.aacADTS,
+                                                      whenFinished: () {
+                                                        setState(() {
+                                                          _isPlaying = false;
+                                                          _currentlyPlayingId =
+                                                              null;
+                                                        });
+                                                      },
+                                                    );
+
+                                                    setState(() {
+                                                      _isPlaying = true;
+                                                      _currentlyPlayingId =
+                                                          messageId;
+                                                    });
+                                                  } catch (e) {
+                                                    print(
+                                                      '❌ خطا در پخش ویس: $e',
+                                                    );
+                                                  }
+                                                }
+                                              },
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              _currentlyPlayingId ==
+                                                          messageId &&
+                                                      _isPlaying
+                                                  ? 'در حال پخش...'
+                                                  : 'Voice message',
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontFamily: 'Vazir',
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    )
+                                  // 👇 اگر ویس نبود، بقیه حالت‌ها مثل قبل اجرا می‌شن
+                                  : msg['media_url'] != null
                                   ? _buildMediaMessage(context, msg, isMine)
                                   : Bubble(
                                       nip: isMine

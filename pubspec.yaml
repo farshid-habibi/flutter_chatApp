@@ -57,9 +57,9 @@ dependencies:
   
   record: ^6.1.2
   just_audio: ^0.9.42   # پخش صدا
-  audio_waveforms: ^1.0.5  # اختیاری برای waveform
   uuid: ^3.0.7  
   flutter_sound: ^9.0.0
+  
 
 dev_dependencies:
   flutter_test:
