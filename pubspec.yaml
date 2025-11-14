@@ -59,6 +59,8 @@ dependencies:
   just_audio: ^0.9.42   # پخش صدا
   uuid: ^3.0.7  
   flutter_sound: ^9.0.0
+  audio_waveforms: ^1.0.5
+  just_waveform: ^0.0.7
   
 
 dev_dependencies:

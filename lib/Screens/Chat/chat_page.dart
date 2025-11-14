@@ -5,6 +5,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_application_1/Screens/Chat/FancySnackBarState.dart';
 import 'package:flutter_application_1/Screens/Chat/SlideTransitionWidget.dart';
+import 'package:flutter_application_1/Screens/Chat/WhatsAppVoiceBubble.dart';
 import 'package:flutter_application_1/core/supabase_client.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -23,7 +24,6 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:record/record.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_sound/flutter_sound.dart';
-
 
 class ChatPage extends StatefulWidget {
   final String roomId;
@@ -73,8 +73,6 @@ class _ChatPageState extends State<ChatPage>
   final TextEditingController _searchController = TextEditingController();
 
   final Map<String, AudioPlayer> _audioPlayers = {};
-
-
 
   final Map<String, AnimationController> _animationControllers = {};
   Map<String, bool> _expandedMessages = {};
@@ -629,7 +627,7 @@ class _ChatPageState extends State<ChatPage>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _recorder = FlutterSoundRecorder(); // اینجا مقداردهی شد
+    _recorder = FlutterSoundRecorder();
     _initRecorder();
     _player.openPlayer();
     _itemPositionsListener.itemPositions.addListener(() {
@@ -1867,98 +1865,15 @@ class _ChatPageState extends State<ChatPage>
                               alignment: isMine
                                   ? Alignment.centerRight
                                   : Alignment.centerLeft,
-
                               child: isVoice && mediaUrl.isNotEmpty
-                                  ? Align(
-                                      alignment: isMine
-                                          ? Alignment.centerRight
-                                          : Alignment.centerLeft,
-                                      child: Container(
-                                        margin: const EdgeInsets.symmetric(
-                                          vertical: 6,
-                                        ),
-                                        padding: const EdgeInsets.all(10),
-                                        decoration: BoxDecoration(
-                                          color: isMine
-                                              ? Colors.deepPurpleAccent
-                                              : Colors.indigo.shade700,
-                                          borderRadius: BorderRadius.circular(
-                                            16,
-                                          ),
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            IconButton(
-                                              icon: Icon(
-                                                // فقط برای همون پیام حالت پلی/پاز رو تغییر بده
-                                                _currentlyPlayingId ==
-                                                            messageId &&
-                                                        _isPlaying
-                                                    ? Icons.pause_circle_filled
-                                                    : Icons.play_circle_fill,
-                                                color: Colors.white,
-                                                size: 32,
-                                              ),
-                                              onPressed: () async {
-                                                // اگر همین ویس در حال پخشه، قطعش کن
-                                                if (_currentlyPlayingId ==
-                                                        messageId &&
-                                                    _isPlaying) {
-                                                  await _player.stopPlayer();
-                                                  setState(() {
-                                                    _isPlaying = false;
-                                                    _currentlyPlayingId = null;
-                                                  });
-                                                } else {
-                                                  // اگر ویس دیگه‌ای در حال پخشه، اون رو قطع کن
-                                                  if (_isPlaying) {
-                                                    await _player.stopPlayer();
-                                                  }
-
-                                                  try {
-                                                    await _player.startPlayer(
-                                                      fromURI: mediaUrl,
-                                                      codec: Codec.aacADTS,
-                                                      whenFinished: () {
-                                                        setState(() {
-                                                          _isPlaying = false;
-                                                          _currentlyPlayingId =
-                                                              null;
-                                                        });
-                                                      },
-                                                    );
-
-                                                    setState(() {
-                                                      _isPlaying = true;
-                                                      _currentlyPlayingId =
-                                                          messageId;
-                                                    });
-                                                  } catch (e) {
-                                                    print(
-                                                      '❌ خطا در پخش ویس: $e',
-                                                    );
-                                                  }
-                                                }
-                                              },
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Text(
-                                              _currentlyPlayingId ==
-                                                          messageId &&
-                                                      _isPlaying
-                                                  ? 'در حال پخش...'
-                                                  : 'Voice message',
-                                              style: const TextStyle(
-                                                color: Colors.white,
-                                                fontFamily: 'Vazir',
-                                              ),
-                                            ),
-                                          ],
-                                        ),
+                                  ? WhatsAppVoiceBubble(
+                                      audioUrl:
+                                          mediaUrl, // حتما URL اینترنتی Supabase
+                                      isMe: isMine,
+                                      sentTime: DateTime.parse(
+                                        msg['created_at'],
                                       ),
                                     )
-                                  // 👇 اگر ویس نبود، بقیه حالت‌ها مثل قبل اجرا می‌شن
                                   : msg['media_url'] != null
                                   ? _buildMediaMessage(context, msg, isMine)
                                   : Bubble(
