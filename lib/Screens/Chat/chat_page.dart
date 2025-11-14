@@ -657,7 +657,6 @@ class _ChatPageState extends State<ChatPage>
         .order('created_at', ascending: true)
         .map((data) => data.cast<Map<String, dynamic>>());
 
-    // نیازی به onPostgresChanges نیست
     _channel = _supabase.channel('room_${widget.roomId}_realtime');
     _channel.subscribe();
 
@@ -1461,6 +1460,73 @@ class _ChatPageState extends State<ChatPage>
     await Future.delayed(const Duration(milliseconds: 700));
     overlayEntry.remove();
   }
+Widget _buildEmptyChatUI() {
+  return Center(
+    child: AnimatedOpacity(
+      opacity: 1,
+      duration: Duration(milliseconds: 700),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: EdgeInsets.all(28),
+            decoration: BoxDecoration(
+              color: Colors.blue.withOpacity(0.1),
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 18,
+                  spreadRadius: 2,
+                  offset: Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Icon(
+              Icons.chat_bubble_outline,
+              size: 80,
+              color: Colors.blue.shade400,
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            "No messages yet",
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey.shade800,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            "Send the first message to start the conversation ✨",
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey.shade600,
+            ),
+          ),
+          const SizedBox(height: 30),
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              color: Colors.blue.shade50,
+            ),
+            child: Text(
+              "Say hello 👋",
+              style: TextStyle(
+                fontSize: 15,
+                color: Colors.blue.shade600,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
 
   Future<void> scrollToMessage(String messageId) async {
     final index = messageIndexes[messageId];
@@ -1741,8 +1807,14 @@ class _ChatPageState extends State<ChatPage>
                   if (!snapshot.hasData) {
                     return const Center(child: CircularProgressIndicator());
                   }
-
+                  // debug logs — حذف کن وقتی مشکل حل شد
+                  if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                    return _buildEmptyChatUI(); // 🔥 زمانی که هیچ پیغامی نیست
+                  }
                   final snapshotMessages = snapshot.data!;
+                  // if (messages.isEmpty) {
+                  //   return _buildEmptyChatUI();
+                  // }
                   if (messages.isEmpty ||
                       messages.length != snapshotMessages.length) {
                     messages = List.from(snapshotMessages);
