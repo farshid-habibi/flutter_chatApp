@@ -1460,6 +1460,7 @@ class _ChatPageState extends State<ChatPage>
     await Future.delayed(const Duration(milliseconds: 700));
     overlayEntry.remove();
   }
+
 Widget _buildEmptyChatUI() {
   return Center(
     child: AnimatedOpacity(

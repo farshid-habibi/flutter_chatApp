@@ -81,6 +81,7 @@ flutter:
     - assets/images/
     - assets/icons/
     - assets/images/chatApp.jpg
+    - assets/images/searching_profile.gif
     - assets/images/background.png
     - assets/sounds/notify.mp3
 

@@ -546,84 +546,112 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 padding: EdgeInsets.all(8.0),
                 child: CircularProgressIndicator(),
               ),
-            Expanded(
-              child: combinedUsers.isEmpty
-                  ? const Center(
-                      child: Text(
-                        "No users found.",
-                        style: TextStyle(fontSize: 16),
-                      ),
-                    )
-                  : ListView.builder(
-                      itemCount: combinedUsers.length,
-                      itemBuilder: (context, index) {
-                        final u = combinedUsers[index];
-                        return Card(
-                          margin: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: Colors.blueAccent,
-                              child: Text(
-                                (u['username'] ?? 'U')[0].toUpperCase(),
-                                style: const TextStyle(color: Colors.white),
-                              ),
-                            ),
-                            title: Text(
-                              u['username'] ?? '',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            subtitle: Text(u['email'] ?? ''),
-                            trailing: Stack(
-                              clipBehavior: Clip.none,
-                              alignment: Alignment.center,
-                              children: [
-                                const Icon(
-                                  Icons.chat,
-                                  color: Colors.blueAccent,
-                                  size: 28,
-                                ),
-                                if ((_unreadCounts[u['id']] ?? 0) > 0)
-                                  Positioned(
-                                    right: 4,
-                                    top: 20,
-                                    child: Container(
-                                      padding: const EdgeInsets.all(4),
-                                      decoration: const BoxDecoration(
-                                        color: Colors.red,
-                                        shape: BoxShape.circle,
-                                      ),
-                                      constraints: const BoxConstraints(
-                                        minWidth: 18,
-                                        minHeight: 18,
-                                      ),
-                                      child: Text(
-                                        '${_unreadCounts[u['id']]}',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                        textAlign: TextAlign.center,
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                            onTap: () => _openChat(u['id']),
-                            onLongPress: () => _toggleSavedUser(u),
-                          ),
-                        );
-                      },
+          Expanded(
+  child: combinedUsers.isEmpty
+      ? Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              SizedBox(
+                height: 150,
+                width: 150,
+                child: Image.asset(
+                  "assets/images/searching_profile.gif", // مسیر GIF
+                  fit: BoxFit.contain,
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              const Text(
+                "No users found",
+                style: TextStyle(
+                  fontSize: 20,
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+
+              const SizedBox(height: 8),
+
+              const Text(
+                "Try searching for someone...",
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey,
+                ),
+              ),
+            ],
+          ),
+        )
+      : ListView.builder(
+          itemCount: combinedUsers.length,
+          itemBuilder: (context, index) {
+            final u = combinedUsers[index];
+            return Card(
+              margin: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 6,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: Colors.blueAccent,
+                  child: Text(
+                    (u['username'] ?? 'U')[0].toUpperCase(),
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
+                title: Text(
+                  u['username'] ?? '',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                subtitle: Text(u['email'] ?? ""),
+                trailing: Stack(
+                  clipBehavior: Clip.none,
+                  alignment: Alignment.center,
+                  children: [
+                    const Icon(
+                      Icons.chat,
+                      color: Colors.blueAccent,
+                      size: 28,
                     ),
-            ),
+                    if ((_unreadCounts[u['id']] ?? 0) > 0)
+                      Positioned(
+                        right: 4,
+                        top: 20,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                          constraints: const BoxConstraints(
+                            minWidth: 18,
+                            minHeight: 18,
+                          ),
+                          child: Text(
+                            '${_unreadCounts[u['id']]}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                onTap: () => _openChat(u['id']),
+                onLongPress: () => _toggleSavedUser(u),
+              ),
+            );
+          },
+        ),
+)
+
           ],
         ),
       ),
