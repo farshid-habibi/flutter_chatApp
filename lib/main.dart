@@ -9,6 +9,7 @@ import 'package:flutter_application_1/DashboardScreen.dart';
 import 'package:flutter_application_1/splash_screen.dart';
 import 'package:flutter_application_1/Screens/Login/login_screen.dart';
 
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -16,10 +17,7 @@ void main() async {
     url: 'https://ctqagcifclyvlntfacnc.supabase.co',
     anonKey:
         'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN0cWFnY2lmY2x5dmxudGZhY25jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM5NTk5NzcsImV4cCI6MjA2OTUzNTk3N30.HAsOI0qlt02OZqv3H2Y18cR8_M_5Vefzgp5kydYQGWM',
-   authOptions: const FlutterAuthClientOptions(
-    autoRefreshToken: true
-  ),
-  
+    authOptions: const FlutterAuthClientOptions(autoRefreshToken: true),
   );
 
   // Listener برای تغییرات session و token refresh
@@ -54,6 +52,7 @@ class _MyAppState extends State<MyApp> {
     if (session != null && session.user != null) {
       _initialRoute = '/dashboard';
     }
+ 
 
     _authSub = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
       if (data.event == AuthChangeEvent.passwordRecovery) {
@@ -93,9 +92,7 @@ class _MyAppState extends State<MyApp> {
           filled: true,
           fillColor: kPrimaryLightColor,
           prefixIconColor: kPrimaryColor,
-          contentPadding: EdgeInsets.symmetric(
-            vertical: defaultPadding,
-          ),
+          contentPadding: EdgeInsets.symmetric(vertical: defaultPadding),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.all(Radius.circular(30)),
             borderSide: BorderSide.none,

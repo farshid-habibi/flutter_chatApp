@@ -54,14 +54,15 @@ dependencies:
   scrollable_positioned_list: ^0.3.8
   permission_handler: ^11.3.1
   path_provider: ^2.0.14
-  
+
   record: ^6.1.2
-  just_audio: ^0.9.42   # پخش صدا
-  uuid: ^3.0.7  
+  just_audio: ^0.9.42 # پخش صدا
+  uuid: ^3.0.7
   flutter_sound: ^9.0.0
   audio_waveforms: ^1.0.5
   just_waveform: ^0.0.7
-  
+  connectivity_plus: ^6.0.3
+  internet_connection_checker: ^1.0.0+1
 
 dev_dependencies:
   flutter_test:

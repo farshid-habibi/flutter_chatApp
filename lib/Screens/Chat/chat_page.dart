@@ -1,5 +1,8 @@
+import 'dart:async';
 import 'dart:io';
+import 'dart:ui';
 import 'package:bubble/bubble.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
@@ -7,6 +10,7 @@ import 'package:flutter_application_1/Screens/Chat/FancySnackBarState.dart';
 import 'package:flutter_application_1/Screens/Chat/SlideTransitionWidget.dart';
 import 'package:flutter_application_1/Screens/Chat/WhatsAppVoiceBubble.dart';
 import 'package:flutter_application_1/core/supabase_client.dart';
+import 'package:internet_connection_checker/internet_connection_checker.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:photo_view/photo_view.dart';
@@ -83,6 +87,10 @@ class _ChatPageState extends State<ChatPage>
   bool _isPlaying = false;
   String? _currentlyPlayingId;
   bool _isRecorderInitialized = false;
+  late RealtimeChannel _unreadChannel;
+  late StreamSubscription _connectionSubscription;
+  bool _isOffline = false;
+
   Widget buildMessageContent(Map<String, dynamic> msg) {
     final text = msg['content'] ?? '';
     final isMine = (msg['sender_id'] ?? '') == _currentUserId;
@@ -514,6 +522,20 @@ class _ChatPageState extends State<ChatPage>
     }
   }
 
+  void _startInternetListener() {
+    _connectionSubscription = Connectivity().onConnectivityChanged.listen((
+      List<ConnectivityResult> results,
+    ) async {
+      bool hasInternet = await InternetConnectionChecker().hasConnection;
+
+      if (!hasInternet && !_isOffline) {
+        setState(() => _isOffline = true);
+      } else if (hasInternet && _isOffline) {
+        setState(() => _isOffline = false);
+      }
+    });
+  }
+
   Future<void> _uploadVoiceToSupabase(File file) async {
     final fileBytes = await file.readAsBytes();
     final fileName = 'voice_${DateTime.now().millisecondsSinceEpoch}.aac';
@@ -576,7 +598,6 @@ class _ChatPageState extends State<ChatPage>
 
   Future<void> _playVoice(String messageId, String url) async {
     try {
-      // اگر همین ویس در حال پخش است، متوقفش کن
       if (_currentlyPlayingId == messageId && _isPlaying) {
         await _player.stopPlayer();
         setState(() {
@@ -586,7 +607,6 @@ class _ChatPageState extends State<ChatPage>
         return;
       }
 
-      // اگر ویس دیگه‌ای در حال پخش بود، اون رو قطع کن
       if (_isPlaying) {
         await _player.stopPlayer();
       }
@@ -626,6 +646,7 @@ class _ChatPageState extends State<ChatPage>
   @override
   void initState() {
     super.initState();
+    _startInternetListener();
     WidgetsBinding.instance.addObserver(this);
     _recorder = FlutterSoundRecorder();
     _initRecorder();
@@ -675,15 +696,12 @@ class _ChatPageState extends State<ChatPage>
       p.dispose();
     }
 
-    // لغو سابسکرایب کانال
     _channel.unsubscribe();
 
-    // پاک کردن کنترلرهای ویدیو
     for (final future in _videoControllers.values) {
       future.then((controller) => controller.dispose());
     }
 
-    // پاک کردن انیمیشن‌ها
     for (final controller in _animationControllers.values) {
       controller.dispose();
     }
@@ -1461,73 +1479,70 @@ class _ChatPageState extends State<ChatPage>
     overlayEntry.remove();
   }
 
-Widget _buildEmptyChatUI() {
-  return Center(
-    child: AnimatedOpacity(
-      opacity: 1,
-      duration: Duration(milliseconds: 700),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: EdgeInsets.all(28),
-            decoration: BoxDecoration(
-              color: Colors.blue.withOpacity(0.1),
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 18,
-                  spreadRadius: 2,
-                  offset: Offset(0, 8),
-                ),
-              ],
-            ),
-            child: Icon(
-              Icons.chat_bubble_outline,
-              size: 80,
-              color: Colors.blue.shade400,
-            ),
-          ),
-          const SizedBox(height: 24),
-          Text(
-            "No messages yet",
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey.shade800,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            "Send the first message to start the conversation ✨",
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey.shade600,
-            ),
-          ),
-          const SizedBox(height: 30),
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              color: Colors.blue.shade50,
-            ),
-            child: Text(
-              "Say hello 👋",
-              style: TextStyle(
-                fontSize: 15,
-                color: Colors.blue.shade600,
-                fontWeight: FontWeight.w600,
+  Widget _buildEmptyChatUI() {
+    return Center(
+      child: AnimatedOpacity(
+        opacity: 1,
+        duration: Duration(milliseconds: 700),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: EdgeInsets.all(28),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.1),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 18,
+                    spreadRadius: 2,
+                    offset: Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Icon(
+                Icons.chat_bubble_outline,
+                size: 80,
+                color: Colors.blue.shade400,
               ),
             ),
-          ),
-        ],
+            const SizedBox(height: 24),
+            Text(
+              "No messages yet",
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey.shade800,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              "Send the first message to start the conversation ✨",
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 30),
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                color: Colors.blue.shade50,
+              ),
+              child: Text(
+                "Say hello 👋",
+                style: TextStyle(
+                  fontSize: 15,
+                  color: Colors.blue.shade600,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   Future<void> scrollToMessage(String messageId) async {
     final index = messageIndexes[messageId];
@@ -1658,7 +1673,7 @@ Widget _buildEmptyChatUI() {
                         textDirection: TextDirection.rtl,
                         cursorColor: Colors.white,
                         decoration: const InputDecoration(
-                          filled: false, // بک‌گراند حذف شد
+                          filled: false,
                           hintText: 'Search...',
                           hintStyle: TextStyle(
                             color: Colors.white54,
@@ -1764,9 +1779,7 @@ Widget _buildEmptyChatUI() {
                         setState(() {
                           _isSearchMode = true;
                         });
-                      } else if (value == 'clear') {
-                        // مثلاً حذف همه چت‌ها یا گزینه‌های دیگر
-                      }
+                      } else if (value == 'clear') {}
                     },
                     itemBuilder: (context) => [
                       const PopupMenuItem<String>(
@@ -1792,6 +1805,103 @@ Widget _buildEmptyChatUI() {
 
         body: Column(
           children: [
+            if (_isOffline)
+              TweenAnimationBuilder(
+                tween: Tween<double>(begin: 0, end: 1),
+                duration: const Duration(milliseconds: 600),
+                curve: Curves.easeOut,
+                builder: (context, value, child) {
+                  return Opacity(
+                    opacity: value,
+                    child: Transform.translate(
+                      offset: Offset(0, (1 - value) * -25), // Slide from top
+                      child: child,
+                    ),
+                  );
+                },
+                child: Container(
+                  margin: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 14,
+                    horizontal: 16,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.08), // Glass effect
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.2),
+                      width: 1.4,
+                    ),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(18),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 13, sigmaY: 13),
+                      child: Row(
+                        children: [
+                          // 🔥 Glowing red wifi icon
+                          Container(
+                            padding: EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: Colors.redAccent.withOpacity(0.15),
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.redAccent.withOpacity(0.4),
+                                  blurRadius: 12,
+                                  spreadRadius: 1,
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              Icons.wifi_off,
+                              color: Colors.redAccent,
+                              size: 28,
+                            ),
+                          ),
+
+                          SizedBox(width: 14),
+
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "No Internet Connection",
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.4,
+                                  ),
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  "Waiting for network…",
+                                  style: TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white70,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
             if (_isUploadingMedia)
               const LinearProgressIndicator(
                 color: Colors.blueAccent,

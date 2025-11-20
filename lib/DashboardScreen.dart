@@ -2,11 +2,14 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:convert' as RealtimePayloadType;
 import 'dart:io';
+import 'dart:ui';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_application_1/Screens/Chat/FancySnackBarState.dart';
 import 'package:flutter_application_1/Screens/Chat/chat_page.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:internet_connection_checker/internet_connection_checker.dart';
 import 'package:path/path.dart' as path;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -28,7 +31,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Timer? _debounce;
   Map<String, int> _unreadCounts = {};
   late RealtimeChannel _unreadChannel;
-  // final AudioPlayer _player = AudioPlayer();
+  late StreamSubscription _connectionSubscription;
+  bool _isOffline = false;
 
   static const MethodChannel _soundChannel = MethodChannel(
     'com.example.flutter/notifications',
@@ -50,6 +54,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _loadCurrentUserProfile();
     _loadUnreadCounts();
     _setupRealtimeUnreadCounts();
+    _startInternetListener();
+  }
+
+  void _startInternetListener() {
+    _connectionSubscription = Connectivity().onConnectivityChanged.listen((
+      List<ConnectivityResult> results,
+    ) async {
+      bool hasInternet = await InternetConnectionChecker().hasConnection;
+
+      if (!hasInternet && !_isOffline) {
+        setState(() => _isOffline = true);
+      } else if (hasInternet && _isOffline) {
+        setState(() => _isOffline = false);
+      }
+    });
   }
 
   void _setupRealtimeUnreadCounts() {
@@ -169,16 +188,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final overlay = Overlay.of(context);
     late OverlayEntry overlayEntry;
 
+    // ارتفاع کیبورد
+    double keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+
     overlayEntry = OverlayEntry(
-      builder: (context) => FancySnackBar(
-        message: message,
-        icon: icon,
-        duration: duration,
-        gradientColors:
-            gradientColors ??
-            [Color(0xFF6A0DAD), Color(0xFF00BFFF)], // بنفش به آبی
-        onClose: () => overlayEntry.remove(), // اینجا remove می‌کنیم
-      ),
+      builder: (context) {
+        return Positioned(
+          left: 0,
+          right: 0,
+          bottom: keyboardHeight + 20,
+          child: Material(
+            color: Colors.transparent,
+            child: FancySnackBar(
+              message: message,
+              icon: icon,
+              duration: duration,
+              gradientColors:
+                  gradientColors ??
+                  [const Color(0xFF6A0DAD), const Color(0xFF00BFFF)],
+              onClose: () => overlayEntry.remove(),
+            ),
+          ),
+        );
+      },
     );
 
     overlay.insert(overlayEntry);
@@ -294,7 +326,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text("Profile picture updated!")));
-        showCustomSnackBar(
+      showCustomSnackBar(
         context,
         message: "Profile picture updated!",
         background: Colors.black87,
@@ -413,6 +445,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     // _player.dispose();
     _unreadChannel.unsubscribe();
     _debounce?.cancel();
+    _connectionSubscription.cancel();
+    _debounce?.cancel();
     super.dispose();
   }
 
@@ -421,238 +455,341 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final user = supabase.auth.currentUser;
 
     final combinedUsers = [
-      ..._savedUsers, // کاربران ذخیره شده همیشه در بالای لیست
+      ..._savedUsers,
       ..._searchResults.where(
         (u) => !_savedUsers.any((saved) => saved['id'] == u['id']),
       ),
     ];
-
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: const Text("ChatterBox"),
-        backgroundColor: const Color.fromARGB(255, 66, 95, 145),
-      ),
-      drawer: Drawer(
-        child: Column(
-          children: [
-            UserAccountsDrawerHeader(
-              decoration: const BoxDecoration(color: Colors.white),
-              accountName: Text(
-                user!.userMetadata!['username'] ?? 'User',
-                style: const TextStyle(
-                  color: Colors.black,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              accountEmail: Text(
-                user.email ?? '',
-                style: const TextStyle(color: Colors.grey),
-              ),
-              currentAccountPicture: GestureDetector(
-                onTap: _pickAndUploadAvatar, // 📌 اینجا متد رو صدا می‌زنیم
-                child: CircleAvatar(
-                  backgroundColor: Colors.grey.shade300,
-                  backgroundImage: user.userMetadata?['avatar_url'] != null
-                      ? NetworkImage(user.userMetadata!['avatar_url'])
-                      : null,
-                  child: user.userMetadata?['avatar_url'] == null
-                      ? Text(
-                          (user.userMetadata?['username'] ?? 'U')[0]
-                              .toUpperCase(),
-                          style: const TextStyle(
-                            fontSize: 24,
-                            color: Colors.black,
-                          ),
-                        )
-                      : null,
-                ),
-              ),
-            ),
-
-            // 📌 گزینه‌های شبیه تلگرام
-            ListTile(
-              leading: const Icon(Icons.group, color: Colors.blueAccent),
-              title: const Text("New Group"),
-              onTap: () {},
-            ),
-            ListTile(
-              leading: const Icon(Icons.person, color: Colors.blueAccent),
-              title: const Text("Contacts"),
-              onTap: () {},
-            ),
-            ListTile(
-              leading: const Icon(Icons.call, color: Colors.blueAccent),
-              title: const Text("Calls"),
-              onTap: () {},
-            ),
-            ListTile(
-              leading: const Icon(Icons.bookmark, color: Colors.blueAccent),
-              title: const Text("Saved Messages"),
-              onTap: () {},
-            ),
-            ListTile(
-              leading: const Icon(Icons.settings, color: Colors.blueAccent),
-              title: const Text("Settings"),
-              onTap: () {},
-            ),
-            ListTile(
-              leading: const Icon(Icons.person_add, color: Colors.blueAccent),
-              title: const Text("Invite Friends"),
-              onTap: () {},
-            ),
-            const Divider(),
-            ListTile(
-              leading: const Icon(Icons.logout, color: Colors.red),
-              title: const Text("Logout"),
-              onTap: () async {
-                await supabase.auth.signOut();
-                if (!mounted) return;
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (_) => const WelcomeScreen()),
-                  (route) => false,
-                );
-              },
-            ),
-          ],
+    return WillPopScope(
+      // This is required: return false to disable back button
+      onWillPop: () async {
+        return false;
+      },
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        appBar: AppBar(
+          title: const Text("ChatterBox"),
+          backgroundColor: const Color.fromARGB(255, 66, 95, 145),
         ),
-      ),
-
-      body: Container(
-        decoration: BoxDecoration(
-          image: DecorationImage(
-            image: AssetImage("assets/images/background.png"),
-            fit: BoxFit.cover, // تصویر تمام صفحه را پوشش می‌دهد
-          ),
-        ),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: TextField(
-                decoration: InputDecoration(
-                  hintText: 'Search users...',
-                  prefixIcon: const Icon(Icons.search),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+        drawer: Drawer(
+          child: Column(
+            children: [
+              UserAccountsDrawerHeader(
+                decoration: const BoxDecoration(color: Colors.white),
+                accountName: Text(
+                  user!.userMetadata!['username'] ?? 'User',
+                  style: const TextStyle(
+                    color: Colors.black,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                onChanged: _onSearchChanged,
-              ),
-            ),
-            if (_isLoading)
-              const Padding(
-                padding: EdgeInsets.all(8.0),
-                child: CircularProgressIndicator(),
-              ),
-          Expanded(
-  child: combinedUsers.isEmpty
-      ? Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              SizedBox(
-                height: 150,
-                width: 150,
-                child: Image.asset(
-                  "assets/images/searching_profile.gif", // مسیر GIF
-                  fit: BoxFit.contain,
+                accountEmail: Text(
+                  user.email ?? '',
+                  style: const TextStyle(color: Colors.grey),
+                ),
+                currentAccountPicture: GestureDetector(
+                  onTap: _pickAndUploadAvatar,
+                  child: CircleAvatar(
+                    backgroundColor: Colors.grey.shade300,
+                    backgroundImage: user.userMetadata?['avatar_url'] != null
+                        ? NetworkImage(user.userMetadata!['avatar_url'])
+                        : null,
+                    child: user.userMetadata?['avatar_url'] == null
+                        ? Text(
+                            (user.userMetadata?['username'] ?? 'U')[0]
+                                .toUpperCase(),
+                            style: const TextStyle(
+                              fontSize: 24,
+                              color: Colors.black,
+                            ),
+                          )
+                        : null,
+                  ),
                 ),
               ),
 
-              const SizedBox(height: 16),
-
-              const Text(
-                "No users found",
-                style: TextStyle(
-                  fontSize: 20,
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                ),
+              ListTile(
+                leading: const Icon(Icons.group, color: Colors.blueAccent),
+                title: const Text("New Group"),
+                onTap: () {},
               ),
-
-              const SizedBox(height: 8),
-
-              const Text(
-                "Try searching for someone...",
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey,
-                ),
+              ListTile(
+                leading: const Icon(Icons.person, color: Colors.blueAccent),
+                title: const Text("Contacts"),
+                onTap: () {},
+              ),
+              ListTile(
+                leading: const Icon(Icons.call, color: Colors.blueAccent),
+                title: const Text("Calls"),
+                onTap: () {},
+              ),
+              ListTile(
+                leading: const Icon(Icons.bookmark, color: Colors.blueAccent),
+                title: const Text("Saved Messages"),
+                onTap: () {},
+              ),
+              ListTile(
+                leading: const Icon(Icons.settings, color: Colors.blueAccent),
+                title: const Text("Settings"),
+                onTap: () {},
+              ),
+              ListTile(
+                leading: const Icon(Icons.person_add, color: Colors.blueAccent),
+                title: const Text("Invite Friends"),
+                onTap: () {},
+              ),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.logout, color: Colors.red),
+                title: const Text("Logout"),
+                onTap: () async {
+                  await supabase.auth.signOut();
+                  if (!mounted) return;
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+                    (route) => false,
+                  );
+                },
               ),
             ],
           ),
-        )
-      : ListView.builder(
-          itemCount: combinedUsers.length,
-          itemBuilder: (context, index) {
-            final u = combinedUsers[index];
-            return Card(
-              margin: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 6,
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: Colors.blueAccent,
-                  child: Text(
-                    (u['username'] ?? 'U')[0].toUpperCase(),
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                ),
-                title: Text(
-                  u['username'] ?? '',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                subtitle: Text(u['email'] ?? ""),
-                trailing: Stack(
-                  clipBehavior: Clip.none,
-                  alignment: Alignment.center,
-                  children: [
-                    const Icon(
-                      Icons.chat,
-                      color: Colors.blueAccent,
-                      size: 28,
+        ),
+
+        body: Container(
+          decoration: BoxDecoration(
+            image: DecorationImage(
+              image: AssetImage("assets/images/background.png"),
+              fit: BoxFit.cover,
+            ),
+          ),
+          child: Column(
+            children: [
+              if (_isOffline)
+                TweenAnimationBuilder(
+                  tween: Tween<double>(begin: 0, end: 1),
+                  duration: const Duration(milliseconds: 600),
+                  curve: Curves.easeOut,
+                  builder: (context, value, child) {
+                    return Opacity(
+                      opacity: value,
+                      child: Transform.translate(
+                        offset: Offset(0, (1 - value) * -25), // Slide from top
+                        child: child,
+                      ),
+                    );
+                  },
+                  child: Container(
+                    margin: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 14,
+                      horizontal: 16,
                     ),
-                    if ((_unreadCounts[u['id']] ?? 0) > 0)
-                      Positioned(
-                        right: 4,
-                        top: 20,
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: const BoxDecoration(
-                            color: Colors.red,
-                            shape: BoxShape.circle,
-                          ),
-                          constraints: const BoxConstraints(
-                            minWidth: 18,
-                            minHeight: 18,
-                          ),
-                          child: Text(
-                            '${_unreadCounts[u['id']]}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.08), // Glass effect
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.2),
+                        width: 1.4,
+                      ),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(18),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 13, sigmaY: 13),
+                        child: Row(
+                          children: [
+                            // 🔥 Glowing red wifi icon
+                            Container(
+                              padding: EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: Colors.redAccent.withOpacity(0.15),
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.redAccent.withOpacity(0.4),
+                                    blurRadius: 12,
+                                    spreadRadius: 1,
+                                  ),
+                                ],
+                              ),
+                              child: Icon(
+                                Icons.wifi_off,
+                                color: Colors.redAccent,
+                                size: 28,
+                              ),
                             ),
-                          ),
+
+                            SizedBox(width: 14),
+
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    "No Internet Connection",
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 0.4,
+                                    ),
+                                  ),
+                                  SizedBox(height: 4),
+                                  Text(
+                                    "Waiting for network…",
+                                    style: TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white70,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                  ],
+                    ),
+                  ),
                 ),
-                onTap: () => _openChat(u['id']),
-                onLongPress: () => _toggleSavedUser(u),
-              ),
-            );
-          },
-        ),
-)
 
-          ],
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: TextField(
+                  decoration: InputDecoration(
+                    hintText: 'Search users...',
+                    prefixIcon: const Icon(Icons.search),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onChanged: _onSearchChanged,
+                ),
+              ),
+              if (_isLoading)
+                const Padding(
+                  padding: EdgeInsets.all(8.0),
+                  child: CircularProgressIndicator(),
+                ),
+              Expanded(
+                child: combinedUsers.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            SizedBox(
+                              height: 150,
+                              width: 150,
+                              child: Image.asset(
+                                "assets/images/searching_profile.gif",
+                                // مسیر GIF
+                                fit: BoxFit.contain,
+                              ),
+                            ),
+
+                            const SizedBox(height: 16),
+
+                            const Text(
+                              "No users found",
+                              style: TextStyle(
+                                fontSize: 20,
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+
+                            const SizedBox(height: 8),
+
+                            const Text(
+                              "Try searching for someone...",
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        itemCount: combinedUsers.length,
+                        itemBuilder: (context, index) {
+                          final u = combinedUsers[index];
+                          return Card(
+                            margin: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: ListTile(
+                              leading: CircleAvatar(
+                                backgroundColor: Colors.blueAccent,
+                                child: Text(
+                                  (u['username'] ?? 'U')[0].toUpperCase(),
+                                  style: const TextStyle(color: Colors.white),
+                                ),
+                              ),
+                              title: Text(
+                                u['username'] ?? '',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              subtitle: Text(u['email'] ?? ""),
+                              trailing: Stack(
+                                clipBehavior: Clip.none,
+                                alignment: Alignment.center,
+                                children: [
+                                  const Icon(
+                                    Icons.chat,
+                                    color: Colors.blueAccent,
+                                    size: 28,
+                                  ),
+                                  if ((_unreadCounts[u['id']] ?? 0) > 0)
+                                    Positioned(
+                                      right: 4,
+                                      top: 20,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(4),
+                                        decoration: const BoxDecoration(
+                                          color: Colors.red,
+                                          shape: BoxShape.circle,
+                                        ),
+                                        constraints: const BoxConstraints(
+                                          minWidth: 18,
+                                          minHeight: 18,
+                                        ),
+                                        child: Text(
+                                          '${_unreadCounts[u['id']]}',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              onTap: () => _openChat(u['id']),
+                              onLongPress: () => _toggleSavedUser(u),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
         ),
       ),
     );
