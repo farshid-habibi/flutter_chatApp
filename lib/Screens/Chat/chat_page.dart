@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert' show jsonEncode, jsonDecode;
 import 'dart:io';
 import 'dart:ui';
 import 'package:bubble/bubble.dart';
@@ -14,6 +15,7 @@ import 'package:internet_connection_checker/internet_connection_checker.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:photo_view/photo_view.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -1628,6 +1630,197 @@ class _ChatPageState extends State<ChatPage>
     );
   }
 
+  Future<void> _saveMessagesCache() async {
+    final prefs = await SharedPreferences.getInstance();
+    prefs.setString('cached_messages', jsonEncode(messages));
+  }
+
+  Future<void> _loadMessagesCache() async {
+    final prefs = await SharedPreferences.getInstance();
+    final cached = prefs.getString('cached_messages');
+    if (cached != null) {
+      final cachedList = List<Map<String, dynamic>>.from(jsonDecode(cached));
+      setState(() {
+        messages = cachedList;
+      });
+    }
+  }
+
+  Widget _buildMessagesList(List<Map<String, dynamic>> messageList) {
+    for (var i = 0; i < messageList.length; i++) {
+      final msg = messageList[i];
+      final messageId = msg['id'];
+
+      // ذخیره کلیدها و اندیس‌ها
+      messageIndexes.putIfAbsent(messageId, () => i);
+      messageKeys.putIfAbsent(messageId, () => GlobalKey());
+
+      _animationControllers.putIfAbsent(
+        messageId,
+        () => AnimationController(
+          vsync: this,
+          duration: const Duration(milliseconds: 400),
+        )..forward(),
+      );
+    }
+
+    return ScrollablePositionedList.builder(
+      itemScrollController: _itemScrollController,
+      itemPositionsListener: _itemPositionsListener,
+      padding: const EdgeInsets.all(12),
+      itemCount: messageList.length,
+      reverse: false,
+      itemBuilder: (context, index) {
+        final msg = messageList[index];
+        final messageId = msg['id'];
+        final isMine = msg['sender_id'] == _currentUserId;
+        final animationController = _animationControllers[messageId]!;
+        final isVoice = msg['is_voice'] == true;
+        final mediaUrl = msg['media_url'] ?? '';
+
+        return FadeTransition(
+          key: ValueKey(messageId),
+          opacity: animationController.drive(Tween(begin: 0.0, end: 1.0)),
+          child: SlideTransition(
+            position: animationController.drive(
+              Tween(
+                begin: const Offset(0, 0.2),
+                end: Offset.zero,
+              ).chain(CurveTween(curve: Curves.easeOut)),
+            ),
+            child: GestureDetector(
+              onLongPressStart: (details) =>
+                  _showMessageMenu(details.globalPosition, msg, isMine),
+              onTap: () {
+                if (_isSelectionMode) {
+                  setState(() {
+                    if (_selectedMessageIds.contains(msg['id'])) {
+                      _selectedMessageIds.remove(msg['id']);
+                      if (_selectedMessageIds.isEmpty) _isSelectionMode = false;
+                    } else {
+                      _selectedMessageIds.add(msg['id']);
+                    }
+                  });
+                }
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 500),
+                curve: Curves.easeInOut,
+                margin: const EdgeInsets.symmetric(vertical: 4),
+                foregroundDecoration: _selectedMessageIds.contains(msg['id'])
+                    ? BoxDecoration(
+                        color: const Color.fromARGB(
+                          255,
+                          22,
+                          19,
+                          78,
+                        ).withOpacity(0.5),
+                        borderRadius: BorderRadius.circular(8),
+                        backgroundBlendMode: BlendMode.overlay,
+                      )
+                    : null,
+                padding: highlightedMessages[msg['id']] == true
+                    ? const EdgeInsets.all(2)
+                    : EdgeInsets.zero,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  border: highlightedMessages[msg['id']] == true
+                      ? Border.all(color: Colors.lightBlueAccent, width: 3)
+                      : null,
+                  color: highlightedMessages[msg['id']] == true
+                      ? Colors.lightBlueAccent.withOpacity(0.1)
+                      : Colors.transparent,
+                ),
+                alignment: isMine
+                    ? Alignment.centerRight
+                    : Alignment.centerLeft,
+                child: isVoice && mediaUrl.isNotEmpty
+                    ? WhatsAppVoiceBubble(
+                        audioUrl: mediaUrl,
+                        isMe: isMine,
+                        sentTime: DateTime.parse(msg['created_at']),
+                      )
+                    : msg['media_url'] != null
+                    ? _buildMediaMessage(context, msg, isMine)
+                    : Bubble(
+                        nip: isMine ? BubbleNip.rightTop : BubbleNip.leftTop,
+                        color: _getBubbleColor(isMine, msg),
+                        elevation: 1,
+                        child: Column(
+                          crossAxisAlignment: isMine
+                              ? CrossAxisAlignment.end
+                              : CrossAxisAlignment.start,
+                          children: [
+                            if (msg['reply_to'] != null)
+                              GestureDetector(
+                                onTap: () async {
+                                  await scrollToMessage(msg['reply_to']);
+                                },
+                                child: Builder(
+                                  builder: (context) {
+                                    final replyMsg = messageList.firstWhere(
+                                      (m) => m['id'] == msg['reply_to'],
+                                      orElse: () => {},
+                                    );
+                                    if (replyMsg.isEmpty)
+                                      return const SizedBox.shrink();
+
+                                    return Container(
+                                      margin: const EdgeInsets.only(bottom: 6),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 6,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.black.withOpacity(0.15),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        replyMsg['content'] ?? '',
+                                        style: TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            Text(
+                              msg['content'] ?? '',
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                          ],
+                        ),
+                      ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+
+
+
+Future<File> _cacheAudioFile(String url, String fileName) async {
+  try {
+    final dir = await getApplicationDocumentsDirectory();
+    final file = File("${dir.path}/$fileName");
+
+    if (!await file.exists()) {
+      final response = await http.get(Uri.parse(url));
+      await file.writeAsBytes(response.bodyBytes);
+    }
+
+    return file;
+  } catch (e) {
+    debugPrint("Error caching audio file: $e");
+    rethrow;
+  }
+}
+
   @override
   Widget build(BuildContext context) {
     if (_messageStream == null) {
@@ -1912,15 +2105,23 @@ class _ChatPageState extends State<ChatPage>
               child: StreamBuilder<List<Map<String, dynamic>>>(
                 stream: _messageStream,
                 builder: (context, snapshot) {
+                  if (_isOffline) {
+                    if (messages.isEmpty) {
+                      _loadMessagesCache(); // بارگذاری کش
+                    }
+                    if (messages.isNotEmpty) {
+                      return _buildMessagesList(messages);
+                    }
+                    return Center(child: Text('No messages available offline'));
+                  }
                   if (snapshot.hasError) {
                     return Center(child: Text('Error: ${snapshot.error}'));
                   }
                   if (!snapshot.hasData) {
                     return const Center(child: CircularProgressIndicator());
                   }
-                  // debug logs — حذف کن وقتی مشکل حل شد
                   if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                    return _buildEmptyChatUI(); // 🔥 زمانی که هیچ پیغامی نیست
+                    return _buildEmptyChatUI();
                   }
                   final snapshotMessages = snapshot.data!;
                   // if (messages.isEmpty) {
@@ -1929,6 +2130,7 @@ class _ChatPageState extends State<ChatPage>
                   if (messages.isEmpty ||
                       messages.length != snapshotMessages.length) {
                     messages = List.from(snapshotMessages);
+                    _saveMessagesCache();
                   }
                   final filteredMessages = _searchQuery.isEmpty
                       ? messages
@@ -2049,6 +2251,7 @@ class _ChatPageState extends State<ChatPage>
                                   ? Alignment.centerRight
                                   : Alignment.centerLeft,
                               child: isVoice && mediaUrl.isNotEmpty
+                              
                                   ? WhatsAppVoiceBubble(
                                       audioUrl:
                                           mediaUrl, // حتما URL اینترنتی Supabase

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:convert' as RealtimePayloadType;
 import 'dart:io';
 import 'dart:ui';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -33,6 +34,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   late RealtimeChannel _unreadChannel;
   late StreamSubscription _connectionSubscription;
   bool _isOffline = false;
+  bool _isPickingAvatar = false;
+  bool _isOpeningChat = false;
 
   static const MethodChannel _soundChannel = MethodChannel(
     'com.example.flutter/notifications',
@@ -129,15 +132,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _checkAndRefreshSession() async {
+    final hasInternet = await InternetConnectionChecker().hasConnection;
     final session = supabase.auth.currentSession;
+
     if (session == null) {
       if (!mounted) return;
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const WelcomeScreen()),
-        (route) => false,
-      );
-    } else {
+      if (hasInternet) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+          (route) => false,
+        );
+      }
+      return;
+    }
+
+    if (hasInternet) {
       try {
         await supabase.auth.refreshSession();
       } catch (e) {
@@ -222,26 +232,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final isSaved = _savedUsers.any((u) => u['id'] == user['id']);
 
     if (isSaved) {
-      _savedUsers.removeWhere((u) => u['id'] == user['id']);
-      showCustomSnackBar(
-        context,
-        message: '${user['username']} removed from your list',
-        background: Colors.black87,
-        icon: Icons.check_circle_outline,
-      );
+      // _savedUsers.removeWhere((u) => u['id'] == user['id']);
+      // showCustomSnackBar(
+      //   context,
+      //   message: '${user['username']} removed from your saved list',
+      //   background: Colors.redAccent,
+      //   icon: Icons.delete_outline,
+      // );
     } else {
       _savedUsers.add(user);
       showCustomSnackBar(
         context,
-        message: '${user['username']} added to your list',
-        background: Colors.black87,
+        message: '${user['username']} added to your saved list',
+        background: Colors.green,
         icon: Icons.check_circle_outline,
       );
     }
 
     await prefs.setString('savedUsers', jsonEncode(_savedUsers));
-
-    setState(() {});
+    if (mounted) setState(() {});
   }
 
   void _onSearchChanged(String query) {
@@ -256,7 +265,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         } else {
           final response = await supabase
               .from('profiles')
-              .select('id, username, email')
+              .select('id, username, email,avatar_url')
               .ilike('username', '%$query%');
 
           setState(
@@ -271,73 +280,42 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
-  bool _isPickingAvatar = false;
   Future<void> _pickAndUploadAvatar() async {
-    if (_isPickingAvatar) return; // جلوگیری از چندبار همزمان
+    if (_isPickingAvatar) return;
     _isPickingAvatar = true;
-    print("🔹 Start picking avatar");
     try {
       final picker = ImagePicker();
       final pickedFile = await picker.pickImage(source: ImageSource.gallery);
-
-      if (pickedFile == null) {
-        print("⚠️ No image picked");
-        return;
-      }
-
-      print("📸 Image picked: ${pickedFile.path}");
+      if (pickedFile == null) return;
 
       final user = supabase.auth.currentUser;
-      if (user == null) {
-        print("❌ No logged-in user");
-        return;
-      }
+      if (user == null) return;
 
       final fileExt = path.extension(pickedFile.path);
       final fileName = "${user.id}$fileExt";
       final filePath = "avatars/$fileName";
 
-      print("📂 Uploading to path: $filePath");
-
-      final uploadResponse = await supabase.storage
+      await supabase.storage
           .from('avatars')
           .upload(
             filePath,
             File(pickedFile.path),
             fileOptions: const FileOptions(upsert: true),
           );
-
-      print("✅ Upload response: $uploadResponse");
-
       final publicUrl = supabase.storage.from('avatars').getPublicUrl(filePath);
-      print("🌐 Public URL: $publicUrl");
 
-      final updateResponse = await supabase
+      await supabase
           .from('profiles')
           .update({'avatar_url': publicUrl})
           .eq('id', user.id);
 
-      print("✏️ Profile update response: $updateResponse");
-
       setState(() {
         user.userMetadata?['avatar_url'] = publicUrl;
       });
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Profile picture updated!")));
-      showCustomSnackBar(
-        context,
-        message: "Profile picture updated!",
-        background: Colors.black87,
-        icon: Icons.check_circle_outline,
-      );
-    } catch (e, st) {
+    } catch (e) {
       print("❌ Error uploading avatar: $e");
-      print("Stack trace: $st");
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Failed to update avatar: $e")));
+    } finally {
+      _isPickingAvatar = false;
     }
   }
   // Future<void> _playNotificationSound() async {
@@ -350,6 +328,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // }
 
   Future<void> _openChat(String otherUserId) async {
+    if (_isOpeningChat) return;
+    _isOpeningChat = true;
+
     try {
       final currentUserId = supabase.auth.currentUser!.id;
 
@@ -391,33 +372,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
       );
 
-      setState(() {
-        _unreadCounts[otherUserId] = 0;
-      });
-
-      final messages =
-          await supabase
-                  .from('messages')
-                  .select('id')
-                  .eq('room_id', roomId)
-                  .neq('sender_id', currentUserId)
-              as List<dynamic>;
-
-      final toUpsert = messages
-          .map((m) => {'message_id': m['id'], 'user_id': currentUserId})
-          .toList();
-
-      if (toUpsert.isNotEmpty) {
-        await supabase
-            .from('message_reads')
-            .upsert(toUpsert, onConflict: 'message_id,user_id');
-      }
-
-      // بارگذاری مجدد تعداد واقعی پیام‌های نخونده
+      _unreadCounts[otherUserId] = 0;
       await _loadUnreadCounts();
     } catch (e) {
       print("❌ Failed to open chat: $e");
     }
+
+    _isOpeningChat = false;
   }
 
   Future<void> _loadCurrentUserProfile() async {
@@ -429,13 +390,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         .select('username, avatar_url')
         .eq('id', userId)
         .single();
-
     if (profile != null && mounted) {
       setState(() {
         supabase.auth.currentUser?.userMetadata?['username'] =
             profile['username'];
         supabase.auth.currentUser?.userMetadata?['avatar_url'] =
-            profile['avatar_url'];
+            profile['avatar_url'] ?? '';
       });
     }
   }
@@ -448,6 +408,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _connectionSubscription.cancel();
     _debounce?.cancel();
     super.dispose();
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          SizedBox(
+            height: 150,
+            width: 150,
+            child: Image.asset("assets/images/searching_profile.gif"),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            "No users found",
+            style: TextStyle(
+              fontSize: 20,
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            "Try searching for someone...",
+            style: TextStyle(fontSize: 14, color: Colors.grey),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -682,112 +671,282 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               Expanded(
                 child: combinedUsers.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            SizedBox(
-                              height: 150,
-                              width: 150,
-                              child: Image.asset(
-                                "assets/images/searching_profile.gif",
-                                // مسیر GIF
-                                fit: BoxFit.contain,
-                              ),
-                            ),
-
-                            const SizedBox(height: 16),
-
-                            const Text(
-                              "No users found",
-                              style: TextStyle(
-                                fontSize: 20,
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-
-                            const SizedBox(height: 8),
-
-                            const Text(
-                              "Try searching for someone...",
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey,
-                              ),
-                            ),
-                          ],
-                        ),
-                      )
+                    ? _buildEmptyState()
                     : ListView.builder(
                         itemCount: combinedUsers.length,
+                        padding: const EdgeInsets.only(bottom: 20),
                         itemBuilder: (context, index) {
                           final u = combinedUsers[index];
-                          return Card(
-                            margin: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: ListTile(
-                              leading: CircleAvatar(
-                                backgroundColor: Colors.blueAccent,
-                                child: Text(
-                                  (u['username'] ?? 'U')[0].toUpperCase(),
-                                  style: const TextStyle(color: Colors.white),
-                                ),
+                          final unread = _unreadCounts[u['id']] ?? 0;
+
+                          return Dismissible(
+                            key: Key(u['id']),
+                            direction: DismissDirection.endToStart,
+
+                          confirmDismiss: (direction) async {
+  final result = await showDialog(
+    context: context,
+    barrierDismissible: true,
+    builder: (context) => AlertDialog(
+      title: Text("Remove User?"),
+      content: Text("Are you sure you want to remove ${u['username']}?"),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: Text("Cancel"),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: Text("Remove"),
+        ),
+      ],
+    ),
+  );
+
+  if (result == true) {
+    // 🔥 حذف واقعی آیتم از لیست
+    setState(() {
+      _savedUsers.removeWhere((item) => item['id'] == u['id']);
+      _searchResults.removeWhere((item) => item['id'] == u['id']);
+    });
+  }
+
+  return result;
+},
+
+
+                            // 🔥 پس‌زمینه قرمز زمان سوایپ
+                            background: Container(
+                              margin: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 8,
                               ),
-                              title: Text(
-                                u['username'] ?? '',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                ),
+                              padding: const EdgeInsets.only(right: 20),
+                              decoration: BoxDecoration(
+                                color: Colors.redAccent.withOpacity(0.85),
+                                borderRadius: BorderRadius.circular(20),
                               ),
-                              subtitle: Text(u['email'] ?? ""),
-                              trailing: Stack(
-                                clipBehavior: Clip.none,
-                                alignment: Alignment.center,
-                                children: [
-                                  const Icon(
-                                    Icons.chat,
-                                    color: Colors.blueAccent,
-                                    size: 28,
+                              alignment: Alignment.centerRight,
+                              child: const Icon(
+                                Icons.delete,
+                                color: Colors.white,
+                                size: 32,
+                              ),
+                            ),
+
+                            child: TweenAnimationBuilder(
+                              duration: const Duration(milliseconds: 350),
+                              curve: Curves.easeOut,
+                              tween: Tween<double>(begin: 0, end: 1),
+                              builder: (context, value, child) {
+                                return Transform.translate(
+                                  offset: Offset(0, 20 * (1 - value)),
+                                  child: Opacity(opacity: value, child: child),
+                                );
+                              },
+
+                              child: GestureDetector(
+                                onLongPress: () => _toggleSavedUser(u),
+                                onTap: () => _openChat(u['id']),
+
+                                child: Container(
+                                  margin: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 8,
                                   ),
-                                  if ((_unreadCounts[u['id']] ?? 0) > 0)
-                                    Positioned(
-                                      right: 4,
-                                      top: 20,
-                                      child: Container(
-                                        padding: const EdgeInsets.all(4),
-                                        decoration: const BoxDecoration(
-                                          color: Colors.red,
-                                          shape: BoxShape.circle,
-                                        ),
-                                        constraints: const BoxConstraints(
-                                          minWidth: 18,
-                                          minHeight: 18,
-                                        ),
-                                        child: Text(
-                                          '${_unreadCounts[u['id']]}',
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.bold,
+                                  padding: const EdgeInsets.all(14),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.08),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: Colors.white.withOpacity(0.15),
+                                      width: 1,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.25),
+                                        blurRadius: 12,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(20),
+                                    child: BackdropFilter(
+                                      filter: ImageFilter.blur(
+                                        sigmaX: 12,
+                                        sigmaY: 12,
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          // ------------------------------------------------ Avatar
+                                          Container(
+                                            width: 54,
+                                            height: 54,
+                                            decoration: BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: Colors.blueAccent
+                                                      .withOpacity(0.5),
+                                                  blurRadius: 15,
+                                                  spreadRadius: 1,
+                                                ),
+                                              ],
+                                            ),
+                                            child: ClipRRect(
+                                              borderRadius:
+                                                  BorderRadius.circular(50),
+                                              child: CachedNetworkImage(
+                                                imageUrl: u['avatar_url'] ?? "",
+                                                fit: BoxFit.cover,
+                                                width: 54,
+                                                height: 54,
+
+                                                placeholder: (context, url) =>
+                                                    Container(
+                                                      width: 54,
+                                                      height: 54,
+                                                      decoration: BoxDecoration(
+                                                        color: Colors.white
+                                                            .withOpacity(0.12),
+                                                        shape: BoxShape.circle,
+                                                      ),
+                                                      child: Center(
+                                                        child: Text(
+                                                          (u['username'] ??
+                                                                  'U')[0]
+                                                              .toUpperCase(),
+                                                          style:
+                                                              const TextStyle(
+                                                                fontSize: 20,
+                                                                color: Colors
+                                                                    .white70,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w600,
+                                                              ),
+                                                        ),
+                                                      ),
+                                                    ),
+
+                                                errorWidget:
+                                                    (
+                                                      context,
+                                                      url,
+                                                      error,
+                                                    ) => Container(
+                                                      width: 54,
+                                                      height: 54,
+                                                      decoration:
+                                                          const BoxDecoration(
+                                                            shape:
+                                                                BoxShape.circle,
+                                                            color: Colors.grey,
+                                                          ),
+                                                      child: const Icon(
+                                                        Icons.person,
+                                                        color: Colors.white,
+                                                      ),
+                                                    ),
+
+                                                fadeInDuration: const Duration(
+                                                  milliseconds: 250,
+                                                ),
+                                                fadeOutDuration: const Duration(
+                                                  milliseconds: 100,
+                                                ),
+                                              ),
+                                            ),
                                           ),
-                                        ),
+
+                                          const SizedBox(width: 16),
+
+                                          // ------------------------------------------------ Username + Email
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  u['username'] ?? '',
+                                                  style: const TextStyle(
+                                                    fontSize: 18,
+                                                    color: Colors.white,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  u['email'] ?? "",
+                                                  style: TextStyle(
+                                                    fontSize: 13,
+                                                    color: Colors.white
+                                                        .withOpacity(0.6),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+
+                                          // ------------------------------------------------ Chat Icon + Badge
+                                          Stack(
+                                            clipBehavior: Clip.none,
+                                            children: [
+                                              const Icon(
+                                                Icons.chat_bubble_rounded,
+                                                color: Colors.blueAccent,
+                                                size: 30,
+                                              ),
+
+                                              if (unread > 0)
+                                                Positioned(
+                                                  right: 2,
+                                                  top: -6,
+                                                  child: Container(
+                                                    padding:
+                                                        const EdgeInsets.all(5),
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.redAccent,
+                                                      shape: BoxShape.circle,
+                                                      boxShadow: [
+                                                        BoxShadow(
+                                                          color: Colors
+                                                              .redAccent
+                                                              .withOpacity(0.5),
+                                                          blurRadius: 8,
+                                                        ),
+                                                      ],
+                                                    ),
+                                                    child: Text(
+                                                      unread.toString(),
+                                                      style: const TextStyle(
+                                                        color: Colors.white,
+                                                        fontSize: 11,
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                ],
+                                  ),
+                                ),
                               ),
-                              onTap: () => _openChat(u['id']),
-                              onLongPress: () => _toggleSavedUser(u),
                             ),
                           );
+                       
+                       
+                       
                         },
                       ),
               ),
+         
+         
             ],
           ),
         ),
