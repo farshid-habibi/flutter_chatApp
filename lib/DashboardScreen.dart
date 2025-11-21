@@ -7,8 +7,10 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_application_1/Screens/Chat/DynamicSnackBar.dart';
 import 'package:flutter_application_1/Screens/Chat/FancySnackBarState.dart';
 import 'package:flutter_application_1/Screens/Chat/chat_page.dart';
+import 'package:flutter_application_1/core/SettingsScreen.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:internet_connection_checker/internet_connection_checker.dart';
 import 'package:path/path.dart' as path;
@@ -232,8 +234,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final isSaved = _savedUsers.any((u) => u['id'] == user['id']);
 
     if (isSaved) {
-      // _savedUsers.removeWhere((u) => u['id'] == user['id']);
-      // showCustomSnackBar(
+      // AnimatedSnackBar.show(
       //   context,
       //   message: '${user['username']} removed from your saved list',
       //   background: Colors.redAccent,
@@ -241,7 +242,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       // );
     } else {
       _savedUsers.add(user);
-      showCustomSnackBar(
+      DynamicSnackBar.show(
         context,
         message: '${user['username']} added to your saved list',
         background: Colors.green,
@@ -265,12 +266,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
         } else {
           final response = await supabase
               .from('profiles')
-              .select('id, username, email,avatar_url')
+              .select('id, username, email,avatar_url,description')
               .ilike('username', '%$query%');
 
           setState(
             () => _searchResults = List<Map<String, dynamic>>.from(response),
           );
+          print(response);
         }
       } catch (e) {
         print("❌ Error searching users: $e");
@@ -318,8 +320,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _isPickingAvatar = false;
     }
   }
-  // Future<void> _playNotificationSound() async {
-  //   try {
+
   //     await _player.setAsset('assets/sounds/notify.mp3'); // مسیر فایل داخل assets
   //     await _player.play();
   //   } catch (e) {
@@ -387,7 +388,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     final profile = await supabase
         .from('profiles')
-        .select('username, avatar_url')
+        .select('username, avatar_url,description')
         .eq('id', userId)
         .single();
     if (profile != null && mounted) {
@@ -396,6 +397,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             profile['username'];
         supabase.auth.currentUser?.userMetadata?['avatar_url'] =
             profile['avatar_url'] ?? '';
+        supabase.auth.currentUser?.userMetadata?['description'] =
+            profile['description'] ?? '';
       });
     }
   }
@@ -439,6 +442,57 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  Widget _drawerItem({
+    required IconData icon,
+    required String label,
+    Color color = Colors.white,
+    required VoidCallback onTap,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      child: TweenAnimationBuilder(
+        duration: const Duration(milliseconds: 350),
+        tween: Tween<double>(begin: 0, end: 1),
+        curve: Curves.easeOut,
+        builder: (context, value, child) => Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(-20 * (1 - value), 0),
+            child: child,
+          ),
+        ),
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.12),
+                width: 1.1,
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(icon, color: color, size: 24),
+                const SizedBox(width: 16),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = supabase.auth.currentUser;
@@ -460,88 +514,175 @@ class _DashboardScreenState extends State<DashboardScreen> {
           title: const Text("ChatterBox"),
           backgroundColor: const Color.fromARGB(255, 66, 95, 145),
         ),
-        drawer: Drawer(
-          child: Column(
-            children: [
-              UserAccountsDrawerHeader(
-                decoration: const BoxDecoration(color: Colors.white),
-                accountName: Text(
-                  user!.userMetadata!['username'] ?? 'User',
-                  style: const TextStyle(
-                    color: Colors.black,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                accountEmail: Text(
-                  user.email ?? '',
-                  style: const TextStyle(color: Colors.grey),
-                ),
-                currentAccountPicture: GestureDetector(
-                  onTap: _pickAndUploadAvatar,
-                  child: CircleAvatar(
-                    backgroundColor: Colors.grey.shade300,
-                    backgroundImage: user.userMetadata?['avatar_url'] != null
-                        ? NetworkImage(user.userMetadata!['avatar_url'])
-                        : null,
-                    child: user.userMetadata?['avatar_url'] == null
-                        ? Text(
-                            (user.userMetadata?['username'] ?? 'U')[0]
-                                .toUpperCase(),
-                            style: const TextStyle(
-                              fontSize: 24,
-                              color: Colors.black,
-                            ),
-                          )
-                        : null,
-                  ),
-                ),
-              ),
 
-              ListTile(
-                leading: const Icon(Icons.group, color: Colors.blueAccent),
-                title: const Text("New Group"),
-                onTap: () {},
+        drawer: Drawer(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          child: ClipRRect(
+            borderRadius: const BorderRadius.only(
+              topRight: Radius.circular(40),
+              bottomRight: Radius.circular(40),
+            ),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.07),
+                  border: Border(
+                    right: BorderSide(
+                      color: Colors.white.withOpacity(0.15),
+                      width: 1.5,
+                    ),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SizedBox(height: 60),
+
+                    // ----------------------------- PROFILE HEADER
+                    Center(
+                      child: Column(
+                        children: [
+                          // Avatar
+                          GestureDetector(
+                            onTap: _pickAndUploadAvatar,
+                            child: Container(
+                              width: 90,
+                              height: 90,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.blueAccent.withOpacity(0.45),
+                                    blurRadius: 18,
+                                    spreadRadius: 2,
+                                  ),
+                                ],
+                              ),
+                              child: CircleAvatar(
+                                radius: 45,
+                                backgroundImage:
+                                    user?.userMetadata?['avatar_url'] != null
+                                    ? NetworkImage(
+                                        user!.userMetadata!['avatar_url'],
+                                      )
+                                    : null,
+                                backgroundColor: Colors.white.withOpacity(0.15),
+                                child: user?.userMetadata?['avatar_url'] == null
+                                    ? Text(
+                                        (user?.userMetadata?['username'] ??
+                                                'U')[0]
+                                            .toUpperCase(),
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 28,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      )
+                                    : null,
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(height: 12),
+
+                          Text(
+                            user?.userMetadata?['username'] ?? "User",
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+
+                          const SizedBox(height: 4),
+
+                          // Email
+                          Text(
+                            user?.email ?? "",
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.6),
+                              fontSize: 13,
+                            ),
+                          ),
+
+                          const SizedBox(height: 2),
+
+                          // Description
+                          Text(
+                            user?.userMetadata?['description'] ?? "",
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.5),
+                              fontSize: 12,
+                              fontStyle: FontStyle.italic,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+
+                          const SizedBox(height: 25),
+                        ],
+                      ),
+                    ),
+
+                    Divider(color: Colors.white.withOpacity(0.15)),
+
+                    const SizedBox(height: 10),
+
+                    // ----------------------------- MENU ITEMS
+                    _drawerItem(
+                      icon: Icons.settings_rounded,
+                      label: "Settings",
+                      onTap: () async {
+                        Navigator.pop(context);
+                        final changed = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const SettingsScreen(),
+                          ),
+                        );
+                        if (changed == true) {
+                          _loadCurrentUserProfile();
+                          setState(() {});
+                        }
+                      },
+                    ),
+
+                    _drawerItem(
+                      icon: Icons.logout_rounded,
+                      label: "Logout",
+                      color: Colors.redAccent,
+                      onTap: () async {
+                        await supabase.auth.signOut();
+                        if (!mounted) return;
+                        Navigator.pushAndRemoveUntil(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const WelcomeScreen(),
+                          ),
+                          (route) => false,
+                        );
+                      },
+                    ),
+
+                    const Spacer(),
+
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 30),
+                      child: Center(
+                        child: Text(
+                          "Version 1.0.0",
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.35),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              ListTile(
-                leading: const Icon(Icons.person, color: Colors.blueAccent),
-                title: const Text("Contacts"),
-                onTap: () {},
-              ),
-              ListTile(
-                leading: const Icon(Icons.call, color: Colors.blueAccent),
-                title: const Text("Calls"),
-                onTap: () {},
-              ),
-              ListTile(
-                leading: const Icon(Icons.bookmark, color: Colors.blueAccent),
-                title: const Text("Saved Messages"),
-                onTap: () {},
-              ),
-              ListTile(
-                leading: const Icon(Icons.settings, color: Colors.blueAccent),
-                title: const Text("Settings"),
-                onTap: () {},
-              ),
-              ListTile(
-                leading: const Icon(Icons.person_add, color: Colors.blueAccent),
-                title: const Text("Invite Friends"),
-                onTap: () {},
-              ),
-              const Divider(),
-              ListTile(
-                leading: const Icon(Icons.logout, color: Colors.red),
-                title: const Text("Logout"),
-                onTap: () async {
-                  await supabase.auth.signOut();
-                  if (!mounted) return;
-                  Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(builder: (_) => const WelcomeScreen()),
-                    (route) => false,
-                  );
-                },
-              ),
-            ],
+            ),
           ),
         ),
 
@@ -683,37 +824,179 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             key: Key(u['id']),
                             direction: DismissDirection.endToStart,
 
-                          confirmDismiss: (direction) async {
-  final result = await showDialog(
-    context: context,
-    barrierDismissible: true,
-    builder: (context) => AlertDialog(
-      title: Text("Remove User?"),
-      content: Text("Are you sure you want to remove ${u['username']}?"),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, false),
-          child: Text("Cancel"),
-        ),
-        TextButton(
-          onPressed: () => Navigator.pop(context, true),
-          child: Text("Remove"),
-        ),
-      ],
-    ),
-  );
+                            confirmDismiss: (direction) async {
+                              final result = await showDialog<bool>(
+                                context: context,
+                                barrierDismissible: true,
+                                builder: (context) {
+                                  return Center(
+                                    child: TweenAnimationBuilder(
+                                      tween: Tween<double>(begin: 0.8, end: 1),
+                                      duration: const Duration(
+                                        milliseconds: 250,
+                                      ),
+                                      curve: Curves.easeOutBack,
+                                      builder: (context, scale, child) {
+                                        return Transform.scale(
+                                          scale: scale,
+                                          child: child,
+                                        );
+                                      },
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(25),
+                                        child: BackdropFilter(
+                                          filter: ImageFilter.blur(
+                                            sigmaX: 18,
+                                            sigmaY: 18,
+                                          ),
+                                          child: Container(
+                                            width: 300,
+                                            padding: const EdgeInsets.all(22),
+                                            decoration: BoxDecoration(
+                                              color: Colors.white.withOpacity(
+                                                0.07,
+                                              ),
+                                              borderRadius:
+                                                  BorderRadius.circular(25),
+                                              border: Border.all(
+                                                color: Colors.white.withOpacity(
+                                                  0.15,
+                                                ),
+                                                width: 1.5,
+                                              ),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: Colors.black
+                                                      .withOpacity(0.35),
+                                                  blurRadius: 25,
+                                                  offset: const Offset(0, 8),
+                                                ),
+                                              ],
+                                            ),
+                                            child: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Container(
+                                                  padding: const EdgeInsets.all(
+                                                    14,
+                                                  ),
+                                                  decoration: BoxDecoration(
+                                                    shape: BoxShape.circle,
+                                                    color: Colors.redAccent
+                                                        .withOpacity(0.25),
+                                                  ),
+                                                  child: const Icon(
+                                                    Icons.delete,
+                                                    color: Colors.redAccent,
+                                                    size: 34,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 18),
+                                                const Text(
+                                                  "Remove User?",
+                                                  style: TextStyle(
+                                                    fontSize: 22,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Colors.white,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 12),
+                                                Text(
+                                                  "Are you sure you want to remove ${u['username']}?",
+                                                  textAlign: TextAlign.center,
+                                                  style: TextStyle(
+                                                    fontSize: 15,
+                                                    color: Colors.white
+                                                        .withOpacity(0.75),
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 28),
+                                                Row(
+                                                  mainAxisAlignment:
+                                                      MainAxisAlignment
+                                                          .spaceBetween,
+                                                  children: [
+                                                    Expanded(
+                                                      child: TextButton(
+                                                        onPressed: () =>
+                                                            Navigator.pop(
+                                                              context,
+                                                              false,
+                                                            ),
+                                                        child: Text(
+                                                          "Cancel",
+                                                          style: TextStyle(
+                                                            color: Colors.white
+                                                                .withOpacity(
+                                                                  0.9,
+                                                                ),
+                                                            fontSize: 16,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 6),
+                                                    Expanded(
+                                                      child: ElevatedButton(
+                                                        style: ElevatedButton.styleFrom(
+                                                          padding:
+                                                              const EdgeInsets.symmetric(
+                                                                vertical: 14,
+                                                              ),
+                                                          backgroundColor:
+                                                              Colors.redAccent,
+                                                          shape: RoundedRectangleBorder(
+                                                            borderRadius:
+                                                                BorderRadius.circular(
+                                                                  14,
+                                                                ),
+                                                          ),
+                                                        ),
+                                                        onPressed: () =>
+                                                            Navigator.pop(
+                                                              context,
+                                                              true,
+                                                            ),
+                                                        child: const Text(
+                                                          "Remove",
+                                                          style: TextStyle(
+                                                            color: Colors.white,
+                                                            fontSize: 16,
+                                                            fontWeight:
+                                                                FontWeight.w600,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              );
 
-  if (result == true) {
-    // 🔥 حذف واقعی آیتم از لیست
-    setState(() {
-      _savedUsers.removeWhere((item) => item['id'] == u['id']);
-      _searchResults.removeWhere((item) => item['id'] == u['id']);
-    });
-  }
+                              if (result == true) {
+                                // عملیات حذف فقط وقتی روی Remove زده شد
+                                _savedUsers.removeWhere(
+                                  (saved) => saved['id'] == u['id'],
+                                );
+                                final prefs =
+                                    await SharedPreferences.getInstance();
+                                await prefs.setString(
+                                  'savedUsers',
+                                  jsonEncode(_savedUsers),
+                                );
+                                if (mounted) setState(() {});
+                                return true; // Dismiss the item from ListView
+                              }
 
-  return result;
-},
-
+                              return false; // Cancel dismissal
+                            },
 
                             // 🔥 پس‌زمینه قرمز زمان سوایپ
                             background: Container(
@@ -723,7 +1006,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               ),
                               padding: const EdgeInsets.only(right: 20),
                               decoration: BoxDecoration(
-                                color: Colors.redAccent.withOpacity(0.85),
+                                color: Colors.redAccent.withOpacity(0.45),
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               alignment: Alignment.centerRight,
@@ -878,7 +1161,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                                 ),
                                                 const SizedBox(height: 4),
                                                 Text(
-                                                  u['email'] ?? "",
+                                                  u['description'] ?? "",
                                                   style: TextStyle(
                                                     fontSize: 13,
                                                     color: Colors.white
@@ -939,14 +1222,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               ),
                             ),
                           );
-                       
-                       
-                       
                         },
                       ),
               ),
-         
-         
             ],
           ),
         ),

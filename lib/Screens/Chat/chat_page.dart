@@ -9,6 +9,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_application_1/Screens/Chat/FancySnackBarState.dart';
 import 'package:flutter_application_1/Screens/Chat/SlideTransitionWidget.dart';
+import 'package:flutter_application_1/Screens/Chat/SmartTextField%20.dart';
 import 'package:flutter_application_1/Screens/Chat/WhatsAppVoiceBubble.dart';
 import 'package:flutter_application_1/core/supabase_client.dart';
 import 'package:internet_connection_checker/internet_connection_checker.dart';
@@ -1041,57 +1042,93 @@ class _ChatPageState extends State<ChatPage>
           minChildSize: 0.2,
           maxChildSize: 0.7,
           builder: (context, scrollController) {
-            return Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-              ),
-              child: Column(
-                children: [
-                  const Text(
-                    "Add a Caption",
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            return TweenAnimationBuilder(
+              tween: Tween<double>(begin: 0.8, end: 1),
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeOutBack,
+              builder: (context, scale, child) {
+                return Transform.scale(scale: scale, child: child);
+              },
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                margin: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.08),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(25),
                   ),
-                  const SizedBox(height: 12),
-                  Expanded(
-                    child: TextField(
-                      controller: captionController,
-                      maxLines: null,
-                      expands: true,
-                      decoration: InputDecoration(
-                        hintText:
-                            "Write something about your image or video...",
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.2),
+                    width: 1.4,
+                  ),
+                ),
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(25),
+                  ),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+                    child: Column(
+                      children: [
+                        const Text(
+                          "Add a Caption",
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
                         ),
-                        filled: true,
-                        fillColor: Colors.grey.shade100,
-                      ),
+                        const SizedBox(height: 12),
+                        Expanded(
+                          child: TextField(
+                            controller: captionController,
+                            maxLines: null,
+                            expands: true,
+                            style: const TextStyle(color: Colors.white),
+                            decoration: InputDecoration(
+                              hintText:
+                                  "Write something about your image or video...",
+                              hintStyle: TextStyle(color: Colors.white70),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide.none,
+                              ),
+                              filled: true,
+                              fillColor: Colors.white.withOpacity(0.1),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, null),
+                              child: const Text(
+                                "Cancel",
+                                style: TextStyle(color: Colors.redAccent),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.blueAccent,
+                              ),
+                              onPressed: () => Navigator.pop(
+                                context,
+                                captionController.text.trim(),
+                              ),
+                              child: const Text("Send"),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, null),
-                        child: const Text(
-                          "Cancel",
-                          style: TextStyle(color: Colors.redAccent),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      ElevatedButton(
-                        onPressed: () => Navigator.pop(
-                          context,
-                          captionController.text.trim(),
-                        ),
-                        child: const Text("Send"),
-                      ),
-                    ],
-                  ),
-                ],
+                ),
               ),
             );
           },
@@ -1109,78 +1146,135 @@ class _ChatPageState extends State<ChatPage>
 
       final caption = await showDialog<String>(
         context: context,
-        builder: (context) => AlertDialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: Row(
-            children: const [
-              Icon(Icons.edit_note, color: Colors.blueAccent),
-              SizedBox(width: 8),
-              Text(
-                'Add a Caption',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
+        barrierDismissible: true,
+        builder: (context) {
+          return Center(
+            child: Material(
+              color: Colors.transparent,
+              child: TweenAnimationBuilder(
+                tween: Tween<double>(begin: 0.8, end: 1),
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeOutBack,
+                builder: (context, scale, child) {
+                  return Transform.scale(scale: scale, child: child);
+                },
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(25),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+                    child: Container(
+                      width: 320,
+                      padding: const EdgeInsets.all(22),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.07),
+                        borderRadius: BorderRadius.circular(25),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.15),
+                          width: 1.5,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.35),
+                            blurRadius: 25,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(
+                          maxHeight: 500, // حداکثر ارتفاع دیالوگ
+                        ),
+                        child: SingleChildScrollView(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.blueAccent.withOpacity(0.25),
+                                ),
+                                child: const Icon(
+                                  Icons.edit_note,
+                                  color: Colors.blueAccent,
+                                  size: 34,
+                                ),
+                              ),
+                              const SizedBox(height: 18),
+                              const Text(
+                                "Add a Caption",
+                                style: TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              SizedBox(
+                                height: 250, // ارتفاع TextField مشخص
+                                child: SmartTextField(
+                                  controller: captionController,
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Expanded(
+                                    child: TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(context, null),
+                                      child: const Text(
+                                        "Cancel",
+                                        style: TextStyle(
+                                          color: Colors.redAccent,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.blueAccent,
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 14,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            14,
+                                          ),
+                                        ),
+                                      ),
+                                      onPressed: () => Navigator.pop(
+                                        context,
+                                        captionController.text.trim(),
+                                      ),
+                                      child: const Text(
+                                        "Send",
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ),
-            ],
-          ),
-          content: TextField(
-            controller: captionController,
-            autofocus: true,
-            textDirection: TextDirection.rtl,
-            maxLines: 3,
-            style: const TextStyle(color: Colors.black87, fontSize: 16),
-            decoration: InputDecoration(
-              hintText: 'Write something about your image or video...',
-              hintStyle: TextStyle(color: Colors.grey.shade400),
-              filled: true,
-              fillColor: Colors.grey.shade100,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 12,
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
-              ),
             ),
-          ),
-          actionsPadding: const EdgeInsets.symmetric(
-            horizontal: 12,
-            vertical: 8,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, null),
-              child: const Text(
-                'Cancel',
-                style: TextStyle(color: Colors.redAccent, fontSize: 16),
-              ),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blueAccent,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 12,
-                ),
-              ),
-              onPressed: () =>
-                  Navigator.pop(context, captionController.text.trim()),
-              child: const Text(
-                'Send',
-                style: TextStyle(fontSize: 16, color: Colors.white),
-              ),
-            ),
-          ],
-        ),
+          );
+        },
       );
 
       if (caption == null) return;
@@ -1194,14 +1288,9 @@ class _ChatPageState extends State<ChatPage>
         _uploadingMediaFile = file;
       });
 
-      final int fileSize = await file.length();
-      const int limitBytes = 10 * 1024 * 1024; // 6MB
-      if (fileSize > limitBytes) {}
-
       await _uploadMediaWithCaption(file, isVideo, caption);
-
       _scrollToBottom();
-    } catch (e, st) {
+    } catch (e) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('خطا در ارسال فایل')));
@@ -1801,25 +1890,22 @@ class _ChatPageState extends State<ChatPage>
     );
   }
 
+  Future<File> _cacheAudioFile(String url, String fileName) async {
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final file = File("${dir.path}/$fileName");
 
+      if (!await file.exists()) {
+        final response = await http.get(Uri.parse(url));
+        await file.writeAsBytes(response.bodyBytes);
+      }
 
-
-Future<File> _cacheAudioFile(String url, String fileName) async {
-  try {
-    final dir = await getApplicationDocumentsDirectory();
-    final file = File("${dir.path}/$fileName");
-
-    if (!await file.exists()) {
-      final response = await http.get(Uri.parse(url));
-      await file.writeAsBytes(response.bodyBytes);
+      return file;
+    } catch (e) {
+      debugPrint("Error caching audio file: $e");
+      rethrow;
     }
-
-    return file;
-  } catch (e) {
-    debugPrint("Error caching audio file: $e");
-    rethrow;
   }
-}
 
   @override
   Widget build(BuildContext context) {
@@ -2251,7 +2337,6 @@ Future<File> _cacheAudioFile(String url, String fileName) async {
                                   ? Alignment.centerRight
                                   : Alignment.centerLeft,
                               child: isVoice && mediaUrl.isNotEmpty
-                              
                                   ? WhatsAppVoiceBubble(
                                       audioUrl:
                                           mediaUrl, // حتما URL اینترنتی Supabase
