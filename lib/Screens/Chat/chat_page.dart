@@ -1181,9 +1181,7 @@ class _ChatPageState extends State<ChatPage>
                         ],
                       ),
                       child: ConstrainedBox(
-                        constraints: const BoxConstraints(
-                          maxHeight: 500, // حداکثر ارتفاع دیالوگ
-                        ),
+                        constraints: const BoxConstraints(maxHeight: 500),
                         child: SingleChildScrollView(
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
@@ -1211,7 +1209,7 @@ class _ChatPageState extends State<ChatPage>
                               ),
                               const SizedBox(height: 12),
                               SizedBox(
-                                height: 250, // ارتفاع TextField مشخص
+                                height: 250,
                                 child: SmartTextField(
                                   controller: captionController,
                                 ),
@@ -1658,64 +1656,155 @@ class _ChatPageState extends State<ChatPage>
   }
 
   void highlightMessage(int index) {}
+
   void _showUserProfileSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.grey[900],
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return Container(
-          height: 400,
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircleAvatar(
-                radius: 80,
-                backgroundColor: Colors.grey[700],
-                backgroundImage: _chatUserAvatar != null
-                    ? NetworkImage(_chatUserAvatar!)
-                    : null,
-                child: _chatUserAvatar == null
-                    ? const Icon(Icons.person, size: 80, color: Colors.white54)
-                    : null,
-              ),
-              const SizedBox(height: 20),
-              Text(
-                _chatUserName ?? "User",
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                "Tap to view full profile",
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.6),
-                  fontSize: 14,
-                ),
-              ),
-              const SizedBox(height: 20),
-              // دکمه بستن
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blueAccent,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        opaque: false,
+        transitionDuration: const Duration(milliseconds: 600),
+        reverseTransitionDuration: const Duration(milliseconds: 400),
+        pageBuilder: (_, __, ___) {
+          return const SizedBox.shrink();
+        },
+        transitionsBuilder: (context, animation, _, child) {
+          final fade = Tween(
+            begin: 0.0,
+            end: 1.0,
+          ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOut));
+
+          final slide = Tween(begin: 40.0, end: 0.0).animate(
+            CurvedAnimation(parent: animation, curve: Curves.easeOutBack),
+          );
+
+          final scale = Tween(begin: 0.8, end: 1.0).animate(
+            CurvedAnimation(parent: animation, curve: Curves.easeOutBack),
+          );
+
+          return Scaffold(
+            backgroundColor: Colors.black.withOpacity(fade.value * 0.55),
+            body: GestureDetector(
+              onTap: () => Navigator.pop(context),
+              child: Center(
+                child: Transform.translate(
+                  offset: Offset(0, slide.value),
+                  child: Transform.scale(
+                    scale: scale.value,
+                    child: _buildUltraProfileCard(context),
                   ),
                 ),
-                onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.close),
-                label: const Text("Close"),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildUltraProfileCard(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(32),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
+        child: Container(
+          width: 340,
+          padding: const EdgeInsets.all(28),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(32),
+            gradient: LinearGradient(
+              colors: [
+                Colors.white.withOpacity(0.18),
+                Colors.white.withOpacity(0.06),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.25),
+              width: 1.6,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.blueAccent.withOpacity(0.7),
+                blurRadius: 40,
+                spreadRadius: 5,
+              ),
+              BoxShadow(
+                color: Colors.purpleAccent.withOpacity(0.4),
+                blurRadius: 60,
+                spreadRadius: 10,
               ),
             ],
           ),
-        );
-      },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // --- Avatar with Pulse Animation ---
+              TweenAnimationBuilder(
+                duration: const Duration(milliseconds: 1800),
+                curve: Curves.easeInOut,
+                tween: Tween<double>(begin: 0.95, end: 1.05),
+                builder: (context, value, child) {
+                  return Transform.scale(scale: value, child: child);
+                },
+                child: Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.blueAccent.withOpacity(0.8),
+                        blurRadius: 25,
+                        spreadRadius: 4,
+                      ),
+                      BoxShadow(
+                        color: Colors.purpleAccent.withOpacity(0.5),
+                        blurRadius: 40,
+                        spreadRadius: 6,
+                      ),
+                    ],
+                  ),
+                  child: CircleAvatar(
+                    radius: 65,
+                    backgroundImage: _chatUserAvatar != null
+                        ? NetworkImage(_chatUserAvatar!)
+                        : null,
+                    backgroundColor: Colors.white.withOpacity(0.08),
+                    child: _chatUserAvatar == null
+                        ? Icon(
+                            Icons.person,
+                            size: 65,
+                            color: Colors.white.withOpacity(0.6),
+                          )
+                        : null,
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              Text(
+                _chatUserName ?? "Unknown User",
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+
+              const SizedBox(height: 10),
+
+              Text(
+                "Swipe down or tap to close",
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.65),
+                  fontSize: 15,
+                ),
+              ),
+
+              const SizedBox(height: 25),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

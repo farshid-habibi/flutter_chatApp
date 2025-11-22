@@ -511,8 +511,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Scaffold(
         backgroundColor: Colors.white,
         appBar: AppBar(
-          title: const Text("ChatterBox"),
-          backgroundColor: const Color.fromARGB(255, 66, 95, 145),
+          centerTitle: true,
+          title: const Text(
+            "Talkify",
+            style: TextStyle(
+              fontSize: 26,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1,
+              color: Colors.white,
+              fontFamily:
+                  "Poppins", // اگر فونت Poppins اضافه کنید فوق‌العاده میشه
+            ),
+          ),
+          backgroundColor: const Color.fromARGB(255, 40, 51, 71)
         ),
 
         drawer: Drawer(
@@ -820,408 +831,416 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           final u = combinedUsers[index];
                           final unread = _unreadCounts[u['id']] ?? 0;
 
-                          return Dismissible(
-                            key: Key(u['id']),
-                            direction: DismissDirection.endToStart,
+                          final isSavedUser = _savedUsers.any(
+                            (saved) => saved['id'] == u['id'],
+                          );
 
-                            confirmDismiss: (direction) async {
-                              final result = await showDialog<bool>(
-                                context: context,
-                                barrierDismissible: true,
-                                builder: (context) {
-                                  return Center(
-                                    child: TweenAnimationBuilder(
-                                      tween: Tween<double>(begin: 0.8, end: 1),
-                                      duration: const Duration(
-                                        milliseconds: 250,
-                                      ),
-                                      curve: Curves.easeOutBack,
-                                      builder: (context, scale, child) {
-                                        return Transform.scale(
-                                          scale: scale,
-                                          child: child,
-                                        );
-                                      },
-                                      child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(25),
-                                        child: BackdropFilter(
-                                          filter: ImageFilter.blur(
-                                            sigmaX: 18,
-                                            sigmaY: 18,
+                          final userItem = TweenAnimationBuilder(
+                            duration: const Duration(milliseconds: 350),
+                            curve: Curves.easeOut,
+                            tween: Tween<double>(begin: 0, end: 1),
+                            builder: (context, value, child) {
+                              return Transform.translate(
+                                offset: Offset(0, 20 * (1 - value)),
+                                child: Opacity(opacity: value, child: child),
+                              );
+                            },
+                            child: GestureDetector(
+                              onLongPress: () => _toggleSavedUser(u),
+                              onTap: () => _openChat(u['id']),
+                              child: Container(
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 8,
+                                ),
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.08),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.15),
+                                    width: 1,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.25),
+                                      blurRadius: 12,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(20),
+                                  child: BackdropFilter(
+                                    filter: ImageFilter.blur(
+                                      sigmaX: 12,
+                                      sigmaY: 12,
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        // ------------------------------------------------ Avatar
+                                        Container(
+                                          width: 54,
+                                          height: 54,
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.blueAccent
+                                                    .withOpacity(0.5),
+                                                blurRadius: 15,
+                                                spreadRadius: 1,
+                                              ),
+                                            ],
                                           ),
-                                          child: Container(
-                                            width: 300,
-                                            padding: const EdgeInsets.all(22),
-                                            decoration: BoxDecoration(
-                                              color: Colors.white.withOpacity(
-                                                0.07,
-                                              ),
-                                              borderRadius:
-                                                  BorderRadius.circular(25),
-                                              border: Border.all(
-                                                color: Colors.white.withOpacity(
-                                                  0.15,
-                                                ),
-                                                width: 1.5,
-                                              ),
-                                              boxShadow: [
-                                                BoxShadow(
-                                                  color: Colors.black
-                                                      .withOpacity(0.35),
-                                                  blurRadius: 25,
-                                                  offset: const Offset(0, 8),
-                                                ),
-                                              ],
+                                          child: ClipRRect(
+                                            borderRadius: BorderRadius.circular(
+                                              50,
                                             ),
-                                            child: Column(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Container(
-                                                  padding: const EdgeInsets.all(
-                                                    14,
-                                                  ),
-                                                  decoration: BoxDecoration(
-                                                    shape: BoxShape.circle,
-                                                    color: Colors.redAccent
-                                                        .withOpacity(0.25),
-                                                  ),
-                                                  child: const Icon(
-                                                    Icons.delete,
-                                                    color: Colors.redAccent,
-                                                    size: 34,
-                                                  ),
-                                                ),
-                                                const SizedBox(height: 18),
-                                                const Text(
-                                                  "Remove User?",
-                                                  style: TextStyle(
-                                                    fontSize: 22,
-                                                    fontWeight: FontWeight.bold,
-                                                    color: Colors.white,
-                                                  ),
-                                                ),
-                                                const SizedBox(height: 12),
-                                                Text(
-                                                  "Are you sure you want to remove ${u['username']}?",
-                                                  textAlign: TextAlign.center,
-                                                  style: TextStyle(
-                                                    fontSize: 15,
-                                                    color: Colors.white
-                                                        .withOpacity(0.75),
-                                                  ),
-                                                ),
-                                                const SizedBox(height: 28),
-                                                Row(
-                                                  mainAxisAlignment:
-                                                      MainAxisAlignment
-                                                          .spaceBetween,
-                                                  children: [
-                                                    Expanded(
-                                                      child: TextButton(
-                                                        onPressed: () =>
-                                                            Navigator.pop(
-                                                              context,
-                                                              false,
-                                                            ),
-                                                        child: Text(
-                                                          "Cancel",
-                                                          style: TextStyle(
-                                                            color: Colors.white
-                                                                .withOpacity(
-                                                                  0.9,
-                                                                ),
-                                                            fontSize: 16,
-                                                          ),
+                                            child: CachedNetworkImage(
+                                              imageUrl: u['avatar_url'] ?? "",
+                                              fit: BoxFit.cover,
+                                              width: 54,
+                                              height: 54,
+                                              placeholder: (context, url) =>
+                                                  Container(
+                                                    width: 54,
+                                                    height: 54,
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.white
+                                                          .withOpacity(0.12),
+                                                      shape: BoxShape.circle,
+                                                    ),
+                                                    child: Center(
+                                                      child: Text(
+                                                        (u['username'] ??
+                                                                'U')[0]
+                                                            .toUpperCase(),
+                                                        style: const TextStyle(
+                                                          fontSize: 20,
+                                                          color: Colors.white70,
+                                                          fontWeight:
+                                                              FontWeight.w600,
                                                         ),
                                                       ),
                                                     ),
-                                                    const SizedBox(width: 6),
-                                                    Expanded(
-                                                      child: ElevatedButton(
-                                                        style: ElevatedButton.styleFrom(
-                                                          padding:
-                                                              const EdgeInsets.symmetric(
-                                                                vertical: 14,
-                                                              ),
-                                                          backgroundColor:
-                                                              Colors.redAccent,
-                                                          shape: RoundedRectangleBorder(
-                                                            borderRadius:
-                                                                BorderRadius.circular(
-                                                                  14,
-                                                                ),
-                                                          ),
+                                                  ),
+                                              errorWidget:
+                                                  (
+                                                    context,
+                                                    url,
+                                                    error,
+                                                  ) => Container(
+                                                    width: 54,
+                                                    height: 54,
+                                                    decoration:
+                                                        const BoxDecoration(
+                                                          shape:
+                                                              BoxShape.circle,
+                                                          color: Colors.grey,
                                                         ),
-                                                        onPressed: () =>
-                                                            Navigator.pop(
-                                                              context,
-                                                              true,
-                                                            ),
-                                                        child: const Text(
-                                                          "Remove",
-                                                          style: TextStyle(
-                                                            color: Colors.white,
-                                                            fontSize: 16,
-                                                            fontWeight:
-                                                                FontWeight.w600,
-                                                          ),
-                                                        ),
-                                                      ),
+                                                    child: const Icon(
+                                                      Icons.person,
+                                                      color: Colors.white,
                                                     ),
-                                                  ],
-                                                ),
-                                              ],
+                                                  ),
+                                              fadeInDuration: const Duration(
+                                                milliseconds: 250,
+                                              ),
+                                              fadeOutDuration: const Duration(
+                                                milliseconds: 100,
+                                              ),
                                             ),
                                           ),
                                         ),
-                                      ),
-                                    ),
-                                  );
-                                },
-                              );
 
-                              if (result == true) {
-                                // عملیات حذف فقط وقتی روی Remove زده شد
-                                _savedUsers.removeWhere(
-                                  (saved) => saved['id'] == u['id'],
-                                );
-                                final prefs =
-                                    await SharedPreferences.getInstance();
-                                await prefs.setString(
-                                  'savedUsers',
-                                  jsonEncode(_savedUsers),
-                                );
-                                if (mounted) setState(() {});
-                                return true; // Dismiss the item from ListView
-                              }
+                                        const SizedBox(width: 16),
 
-                              return false; // Cancel dismissal
-                            },
-
-                            // 🔥 پس‌زمینه قرمز زمان سوایپ
-                            background: Container(
-                              margin: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 8,
-                              ),
-                              padding: const EdgeInsets.only(right: 20),
-                              decoration: BoxDecoration(
-                                color: Colors.redAccent.withOpacity(0.45),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              alignment: Alignment.centerRight,
-                              child: const Icon(
-                                Icons.delete,
-                                color: Colors.white,
-                                size: 32,
-                              ),
-                            ),
-
-                            child: TweenAnimationBuilder(
-                              duration: const Duration(milliseconds: 350),
-                              curve: Curves.easeOut,
-                              tween: Tween<double>(begin: 0, end: 1),
-                              builder: (context, value, child) {
-                                return Transform.translate(
-                                  offset: Offset(0, 20 * (1 - value)),
-                                  child: Opacity(opacity: value, child: child),
-                                );
-                              },
-
-                              child: GestureDetector(
-                                onLongPress: () => _toggleSavedUser(u),
-                                onTap: () => _openChat(u['id']),
-
-                                child: Container(
-                                  margin: const EdgeInsets.symmetric(
-                                    horizontal: 14,
-                                    vertical: 8,
-                                  ),
-                                  padding: const EdgeInsets.all(14),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.08),
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color: Colors.white.withOpacity(0.15),
-                                      width: 1,
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.25),
-                                        blurRadius: 12,
-                                        offset: const Offset(0, 4),
-                                      ),
-                                    ],
-                                  ),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(20),
-                                    child: BackdropFilter(
-                                      filter: ImageFilter.blur(
-                                        sigmaX: 12,
-                                        sigmaY: 12,
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          // ------------------------------------------------ Avatar
-                                          Container(
-                                            width: 54,
-                                            height: 54,
-                                            decoration: BoxDecoration(
-                                              shape: BoxShape.circle,
-                                              boxShadow: [
-                                                BoxShadow(
-                                                  color: Colors.blueAccent
-                                                      .withOpacity(0.5),
-                                                  blurRadius: 15,
-                                                  spreadRadius: 1,
-                                                ),
-                                              ],
-                                            ),
-                                            child: ClipRRect(
-                                              borderRadius:
-                                                  BorderRadius.circular(50),
-                                              child: CachedNetworkImage(
-                                                imageUrl: u['avatar_url'] ?? "",
-                                                fit: BoxFit.cover,
-                                                width: 54,
-                                                height: 54,
-
-                                                placeholder: (context, url) =>
-                                                    Container(
-                                                      width: 54,
-                                                      height: 54,
-                                                      decoration: BoxDecoration(
-                                                        color: Colors.white
-                                                            .withOpacity(0.12),
-                                                        shape: BoxShape.circle,
-                                                      ),
-                                                      child: Center(
-                                                        child: Text(
-                                                          (u['username'] ??
-                                                                  'U')[0]
-                                                              .toUpperCase(),
-                                                          style:
-                                                              const TextStyle(
-                                                                fontSize: 20,
-                                                                color: Colors
-                                                                    .white70,
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .w600,
-                                                              ),
-                                                        ),
-                                                      ),
-                                                    ),
-
-                                                errorWidget:
-                                                    (
-                                                      context,
-                                                      url,
-                                                      error,
-                                                    ) => Container(
-                                                      width: 54,
-                                                      height: 54,
-                                                      decoration:
-                                                          const BoxDecoration(
-                                                            shape:
-                                                                BoxShape.circle,
-                                                            color: Colors.grey,
-                                                          ),
-                                                      child: const Icon(
-                                                        Icons.person,
-                                                        color: Colors.white,
-                                                      ),
-                                                    ),
-
-                                                fadeInDuration: const Duration(
-                                                  milliseconds: 250,
-                                                ),
-                                                fadeOutDuration: const Duration(
-                                                  milliseconds: 100,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-
-                                          const SizedBox(width: 16),
-
-                                          // ------------------------------------------------ Username + Email
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  u['username'] ?? '',
-                                                  style: const TextStyle(
-                                                    fontSize: 18,
-                                                    color: Colors.white,
-                                                    fontWeight: FontWeight.w600,
-                                                  ),
-                                                ),
-                                                const SizedBox(height: 4),
-                                                Text(
-                                                  u['description'] ?? "",
-                                                  style: TextStyle(
-                                                    fontSize: 13,
-                                                    color: Colors.white
-                                                        .withOpacity(0.6),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-
-                                          // ------------------------------------------------ Chat Icon + Badge
-                                          Stack(
-                                            clipBehavior: Clip.none,
+                                        // ------------------------------------------------ Username + Description
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
                                             children: [
-                                              const Icon(
-                                                Icons.chat_bubble_rounded,
-                                                color: Colors.blueAccent,
-                                                size: 30,
-                                              ),
-
-                                              if (unread > 0)
-                                                Positioned(
-                                                  right: 2,
-                                                  top: -6,
-                                                  child: Container(
-                                                    padding:
-                                                        const EdgeInsets.all(5),
-                                                    decoration: BoxDecoration(
-                                                      color: Colors.redAccent,
-                                                      shape: BoxShape.circle,
-                                                      boxShadow: [
-                                                        BoxShadow(
-                                                          color: Colors
-                                                              .redAccent
-                                                              .withOpacity(0.5),
-                                                          blurRadius: 8,
-                                                        ),
-                                                      ],
-                                                    ),
-                                                    child: Text(
-                                                      unread.toString(),
-                                                      style: const TextStyle(
-                                                        color: Colors.white,
-                                                        fontSize: 11,
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                      ),
-                                                    ),
-                                                  ),
+                                              Text(
+                                                u['username'] ?? '',
+                                                style: const TextStyle(
+                                                  fontSize: 18,
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.w600,
                                                 ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                u['description'] ?? "",
+                                                style: TextStyle(
+                                                  fontSize: 13,
+                                                  color: Colors.white
+                                                      .withOpacity(0.6),
+                                                ),
+                                              ),
                                             ],
                                           ),
-                                        ],
-                                      ),
+                                        ),
+
+                                        // ------------------------------------------------ Chat Icon + Badge
+                                        Stack(
+                                          clipBehavior: Clip.none,
+                                          children: [
+                                            const Icon(
+                                              Icons.chat_bubble_rounded,
+                                              color: Colors.blueAccent,
+                                              size: 30,
+                                            ),
+                                            if (unread > 0)
+                                              Positioned(
+                                                right: 2,
+                                                top: -6,
+                                                child: Container(
+                                                  padding: const EdgeInsets.all(
+                                                    5,
+                                                  ),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.redAccent,
+                                                    shape: BoxShape.circle,
+                                                    boxShadow: [
+                                                      BoxShadow(
+                                                        color: Colors.redAccent
+                                                            .withOpacity(0.5),
+                                                        blurRadius: 8,
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  child: Text(
+                                                    unread.toString(),
+                                                    style: const TextStyle(
+                                                      color: Colors.white,
+                                                      fontSize: 11,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ),
                               ),
                             ),
                           );
+
+                          // فقط برای کاربران ذخیره شده Dismissible باشه
+                          if (isSavedUser) {
+                            return Dismissible(
+                              key: Key(u['id']),
+                              direction: DismissDirection.endToStart,
+                              confirmDismiss: (direction) async {
+                                final result = await showDialog<bool>(
+                                  context: context,
+                                  barrierDismissible: true,
+                                  builder: (context) {
+                                    return Center(
+                                      child: TweenAnimationBuilder(
+                                        tween: Tween<double>(
+                                          begin: 0.8,
+                                          end: 1,
+                                        ),
+                                        duration: const Duration(
+                                          milliseconds: 250,
+                                        ),
+                                        curve: Curves.easeOutBack,
+                                        builder: (context, scale, child) {
+                                          return Transform.scale(
+                                            scale: scale,
+                                            child: child,
+                                          );
+                                        },
+                                        child: ClipRRect(
+                                          borderRadius: BorderRadius.circular(
+                                            25,
+                                          ),
+                                          child: BackdropFilter(
+                                            filter: ImageFilter.blur(
+                                              sigmaX: 18,
+                                              sigmaY: 18,
+                                            ),
+                                            child: Container(
+                                              width: 300,
+                                              padding: const EdgeInsets.all(22),
+                                              decoration: BoxDecoration(
+                                                color: Colors.white.withOpacity(
+                                                  0.07,
+                                                ),
+                                                borderRadius:
+                                                    BorderRadius.circular(25),
+                                                border: Border.all(
+                                                  color: Colors.white
+                                                      .withOpacity(0.15),
+                                                  width: 1.5,
+                                                ),
+                                                boxShadow: [
+                                                  BoxShadow(
+                                                    color: Colors.black
+                                                        .withOpacity(0.35),
+                                                    blurRadius: 25,
+                                                    offset: const Offset(0, 8),
+                                                  ),
+                                                ],
+                                              ),
+                                              child: Column(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Container(
+                                                    padding:
+                                                        const EdgeInsets.all(
+                                                          14,
+                                                        ),
+                                                    decoration: BoxDecoration(
+                                                      shape: BoxShape.circle,
+                                                      color: Colors.redAccent
+                                                          .withOpacity(0.25),
+                                                    ),
+                                                    child: const Icon(
+                                                      Icons.delete,
+                                                      color: Colors.redAccent,
+                                                      size: 34,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 18),
+                                                  const Text(
+                                                    "Remove User?",
+                                                    style: TextStyle(
+                                                      fontSize: 22,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      color: Colors.white,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 12),
+                                                  Text(
+                                                    "Are you sure you want to remove ${u['username']}?",
+                                                    textAlign: TextAlign.center,
+                                                    style: TextStyle(
+                                                      fontSize: 15,
+                                                      color: Colors.white
+                                                          .withOpacity(0.75),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 28),
+                                                  Row(
+                                                    mainAxisAlignment:
+                                                        MainAxisAlignment
+                                                            .spaceBetween,
+                                                    children: [
+                                                      Expanded(
+                                                        child: TextButton(
+                                                          onPressed: () =>
+                                                              Navigator.pop(
+                                                                context,
+                                                                false,
+                                                              ),
+                                                          child: Text(
+                                                            "Cancel",
+                                                            style: TextStyle(
+                                                              color: Colors
+                                                                  .white
+                                                                  .withOpacity(
+                                                                    0.9,
+                                                                  ),
+                                                              fontSize: 16,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 6),
+                                                      Expanded(
+                                                        child: ElevatedButton(
+                                                          style: ElevatedButton.styleFrom(
+                                                            padding:
+                                                                const EdgeInsets.symmetric(
+                                                                  vertical: 14,
+                                                                ),
+                                                            backgroundColor:
+                                                                Colors
+                                                                    .redAccent,
+                                                            shape: RoundedRectangleBorder(
+                                                              borderRadius:
+                                                                  BorderRadius.circular(
+                                                                    14,
+                                                                  ),
+                                                            ),
+                                                          ),
+                                                          onPressed: () =>
+                                                              Navigator.pop(
+                                                                context,
+                                                                true,
+                                                              ),
+                                                          child: const Text(
+                                                            "Remove",
+                                                            style: TextStyle(
+                                                              color:
+                                                                  Colors.white,
+                                                              fontSize: 16,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w600,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                );
+
+                                if (result == true) {
+                                  _savedUsers.removeWhere(
+                                    (saved) => saved['id'] == u['id'],
+                                  );
+                                  final prefs =
+                                      await SharedPreferences.getInstance();
+                                  await prefs.setString(
+                                    'savedUsers',
+                                    jsonEncode(_savedUsers),
+                                  );
+                                  if (mounted) setState(() {});
+                                  return true;
+                                }
+
+                                return false;
+                              },
+                              background: Container(
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 8,
+                                ),
+                                padding: const EdgeInsets.only(right: 20),
+                                decoration: BoxDecoration(
+                                  color: Colors.redAccent.withOpacity(0.45),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                alignment: Alignment.centerRight,
+                                child: const Icon(
+                                  Icons.delete,
+                                  color: Colors.white,
+                                  size: 32,
+                                ),
+                              ),
+                              child: userItem,
+                            );
+                          } else {
+                            return userItem;
+                          }
                         },
                       ),
               ),
