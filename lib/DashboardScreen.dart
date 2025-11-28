@@ -200,7 +200,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final overlay = Overlay.of(context);
     late OverlayEntry overlayEntry;
 
-    // ارتفاع کیبورد
     double keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
 
     overlayEntry = OverlayEntry(
@@ -405,7 +404,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   void dispose() {
-    // _player.dispose();
     _unreadChannel.unsubscribe();
     _debounce?.cancel();
     _connectionSubscription.cancel();
@@ -520,7 +518,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               letterSpacing: 1,
               color: Colors.white,
               fontFamily:
-                  "Poppins", // اگر فونت Poppins اضافه کنید فوق‌العاده میشه
+                  "Poppins",
             ),
           ),
           backgroundColor: const Color.fromARGB(255, 40, 51, 71)
@@ -551,7 +549,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   children: [
                     const SizedBox(height: 60),
 
-                    // ----------------------------- PROFILE HEADER
                     Center(
                       child: Column(
                         children: [
@@ -640,7 +637,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                     const SizedBox(height: 10),
 
-                    // ----------------------------- MENU ITEMS
                     _drawerItem(
                       icon: Icons.settings_rounded,
                       label: "Settings",
