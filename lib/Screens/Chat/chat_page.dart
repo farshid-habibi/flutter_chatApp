@@ -897,7 +897,7 @@ class _ChatPageState extends State<ChatPage>
       'room_id': widget.roomId,
       'sender_id': _currentUserId,
       'content': caption ?? '',
-      'media_url': file.path, // مسیر محلی
+      'media_url': file.path,
       'is_video': isVideo,
       'status': 'uploading',
       'created_at': DateTime.now().toIso8601String(),
@@ -936,7 +936,7 @@ class _ChatPageState extends State<ChatPage>
           messages[index]['id'] =
               'server_${DateTime.now().millisecondsSinceEpoch}';
         }
-        _isUploadingMedia = false; // مخفی کردن ProgressBar
+        _isUploadingMedia = false;
       });
 
       _showFancySnackBar(
@@ -1014,6 +1014,7 @@ class _ChatPageState extends State<ChatPage>
         'media_url': null,
         'is_video': false,
         'status': 'sent',
+        'created_at': DateTime.now().toIso8601String(),
         if (_replyingTo != null) 'reply_to': _replyingTo!['id'],
       });
       setState(() {
@@ -1972,8 +1973,6 @@ class _ChatPageState extends State<ChatPage>
                         ),
                       ),
               ),
-            
-            
             ),
           ),
         );
