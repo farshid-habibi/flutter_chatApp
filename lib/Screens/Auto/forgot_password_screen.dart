@@ -68,7 +68,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         icon: Icons.wifi_off,
         gradientColors: [Colors.red, Colors.orange],
       );
-      return; // توقف عملیات ارسال لینک
+      return;
     }
 
     setState(() => _loading = true);
@@ -88,7 +88,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
       if (!mounted) return;
 
-      // 🔹 نمایش پیام موفقیت دائمی تا کلیک کاربر
       _showResetEmailSuccess(context);
     } on TimeoutException {
       if (!mounted) return;
@@ -135,7 +134,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           child: GestureDetector(
             onTap: () {
               entry.remove(); // Hide message on click
-              Navigator.of(context).pop(); // برگرد به صفحه قبلی
+              Navigator.of(context).pop();
             },
             child: Material(
               color: Colors.transparent,
@@ -218,7 +217,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       child: Padding(
         padding: const EdgeInsets.all(
           defaultPadding,
-        ), // اینجا هم padding اضافه شد
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

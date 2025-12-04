@@ -93,6 +93,7 @@ class _ChatPageState extends State<ChatPage>
   late RealtimeChannel _unreadChannel;
   late StreamSubscription _connectionSubscription;
   bool _isOffline = false;
+  bool _isSending = false;
 
   Widget buildMessageContent(Map<String, dynamic> msg) {
     final text = msg['content'] ?? '';
@@ -1002,6 +1003,9 @@ class _ChatPageState extends State<ChatPage>
   }
 
   Future<void> _sendMessage() async {
+    if (_isSending) return;
+    _isSending = true;
+    setState(() {});
     final text = _controller.text.trim();
     if (text.isEmpty || _currentUserId.isEmpty) return;
 
@@ -1024,6 +1028,9 @@ class _ChatPageState extends State<ChatPage>
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Failed to send message')));
+    } finally {
+      _isSending = false;
+      setState(() {});
     }
 
     _controller.clear();

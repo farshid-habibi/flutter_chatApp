@@ -97,7 +97,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           })
           .eq('id', userId);
 
-      Navigator.pop(context, true); // برمیگردیم و به داشبورد می‌گوییم reload کن
+      Navigator.pop(context, true);
     } catch (e) {
       print("❌ Error updating profile: $e");
     }
@@ -146,12 +146,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
           ),
-          // Positioned.fill(
-          //   child: Opacity(
-          //     opacity: 0.07,
-          //     child: Image.asset("assets/particles.png", fit: BoxFit.cover),
-          //   ),
-          // ),
+
           _loading
               ? const Center(
                   child: CircularProgressIndicator(color: Colors.white),
@@ -188,12 +183,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 ],
                               ),
                               child: CircleAvatar(
-                                radius: 65,
+                                radius: 130,
                                 backgroundImage:
                                     avatarUrl != null && avatarUrl!.isNotEmpty
                                     ? NetworkImage(avatarUrl!)
                                     : null,
-                                backgroundColor: Colors.white.withOpacity(0.2),
+                                backgroundColor: Colors.white.withOpacity(0.3),
                                 child: avatarUrl == null || avatarUrl!.isEmpty
                                     ? const Icon(
                                         Icons.person,

@@ -568,7 +568,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   ),
                                 ],
                               ),
-                              child: CircleAvatar(
+                               child: CircleAvatar(
                                 radius: 45,
                                 backgroundImage:
                                     user?.userMetadata?['avatar_url'] != null
@@ -874,7 +874,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     ),
                                     child: Row(
                                       children: [
-                                        // ------------------------------------------------ Avatar
                                         Container(
                                           width: 54,
                                           height: 54,
@@ -898,6 +897,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                               fit: BoxFit.cover,
                                               width: 54,
                                               height: 54,
+                                              
                                               placeholder: (context, url) =>
                                                   Container(
                                                     width: 54,
@@ -948,11 +948,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                               ),
                                             ),
                                           ),
+                                       
+                                       
+                                       
+                                       
                                         ),
 
                                         const SizedBox(width: 16),
 
-                                        // ------------------------------------------------ Username + Description
                                         Expanded(
                                           child: Column(
                                             crossAxisAlignment:
@@ -979,7 +982,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                           ),
                                         ),
 
-                                        // ------------------------------------------------ Chat Icon + Badge
                                         Stack(
                                           clipBehavior: Clip.none,
                                           children: [
@@ -1024,11 +1026,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     ),
                                   ),
                                 ),
+                            
+                            
+                            
                               ),
                             ),
                           );
 
-                          // فقط برای کاربران ذخیره شده Dismissible باشه
                           if (isSavedUser) {
                             return Dismissible(
                               key: Key(u['id']),
