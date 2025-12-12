@@ -1,12 +1,13 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:Talkify/Screens/Chat/FancySnackBarState.dart';
+import 'package:Talkify/components/background.dart';
+import 'package:Talkify/constants.dart';
+import 'package:Talkify/responsive.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_application_1/Screens/Chat/FancySnackBarState.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:flutter_application_1/components/background.dart';
-import 'package:flutter_application_1/constants.dart';
-import 'package:flutter_application_1/responsive.dart';
+
 
 class ResetPasswordScreen extends StatefulWidget {
   const ResetPasswordScreen({Key? key}) : super(key: key);

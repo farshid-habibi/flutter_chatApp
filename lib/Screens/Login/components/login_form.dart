@@ -1,13 +1,14 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:Talkify/Screens/Auto/forgot_password_screen.dart';
+import 'package:Talkify/Screens/Auto/reset_password_screen.dart';
+import 'package:Talkify/Screens/Chat/FancySnackBarState.dart';
+import 'package:Talkify/Screens/Signup/signup_screen.dart';
+import 'package:Talkify/components/already_have_an_account_acheck.dart';
+import 'package:Talkify/constants.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_application_1/Screens/Auto/forgot_password_screen.dart'
-    show ForgotPasswordScreen;
-import 'package:flutter_application_1/Screens/Auto/reset_password_screen.dart';
-import 'package:flutter_application_1/Screens/Chat/FancySnackBarState.dart';
-import 'package:flutter_application_1/constants.dart';
-import 'package:flutter_application_1/components/already_have_an_account_acheck.dart';
-import 'package:flutter_application_1/Screens/Signup/signup_screen.dart';
+
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 void showCustomSnackBar(
@@ -92,7 +93,7 @@ class _LoginFormState extends State<LoginForm> {
     if (!await _checkInternet()) {
       _showError(
         'No internet connection. Please check your network.',
-        icon: Icons.wifi_off, // آیکون وای‌فای قطع
+        icon: Icons.wifi_off,
       );
       return;
     }

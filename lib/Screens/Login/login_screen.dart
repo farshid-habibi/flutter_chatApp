@@ -1,7 +1,8 @@
+import 'package:Talkify/components/background.dart';
+import 'package:Talkify/constants.dart';
+import 'package:Talkify/responsive.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_application_1/components/background.dart';
-import 'package:flutter_application_1/constants.dart';
-import 'package:flutter_application_1/responsive.dart';
+
 
 import 'components/login_form.dart';
 import 'components/login_screen_top_image.dart';

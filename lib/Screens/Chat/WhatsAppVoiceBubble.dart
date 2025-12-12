@@ -93,7 +93,7 @@ class _WhatsAppVoiceBubbleState extends State<WhatsAppVoiceBubble> {
                   children: const [
                     Icon(Icons.error, color: Colors.redAccent, size: 16),
                     SizedBox(width: 6),
-                    Text("خطا در بارگذاری ویس", style: TextStyle(fontSize: 12)),
+                    Text("Error loading voice", style: TextStyle(fontSize: 12)),
                   ],
                 )
               else

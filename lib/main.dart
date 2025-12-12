@@ -1,13 +1,13 @@
 import 'dart:async';
+import 'package:Talkify/DashboardScreen.dart';
+import 'package:Talkify/Screens/Auto/reset_password_screen.dart';
+import 'package:Talkify/Screens/Login/login_screen.dart';
+import 'package:Talkify/Screens/Welcome/welcome_screen.dart';
+import 'package:Talkify/constants.dart';
+import 'package:Talkify/splash_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_application_1/Screens/Chat/chat_page.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:flutter_application_1/Screens/Auto/reset_password_screen.dart';
-import 'package:flutter_application_1/constants.dart';
-import 'package:flutter_application_1/Screens/Welcome/welcome_screen.dart';
-import 'package:flutter_application_1/DashboardScreen.dart';
-import 'package:flutter_application_1/splash_screen.dart';
-import 'package:flutter_application_1/Screens/Login/login_screen.dart';
+
 
 
 void main() async {
@@ -20,7 +20,6 @@ void main() async {
     authOptions: const FlutterAuthClientOptions(autoRefreshToken: true),
   );
 
-  // Listener برای تغییرات session و token refresh
   Supabase.instance.client.auth.onAuthStateChange.listen((data) {
     final event = data.event;
     final session = data.session;

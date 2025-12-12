@@ -1,4 +1,4 @@
-name: flutter_application_1
+name: Talkify
 description: "A new Flutter project."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
@@ -56,7 +56,7 @@ dependencies:
   path_provider: ^2.0.14
 
   record: ^6.1.2
-  just_audio: ^0.9.42 # پخش صدا
+  just_audio: ^0.9.42 
   uuid: ^3.0.7
   flutter_sound: ^9.0.0
   audio_waveforms: ^1.0.5

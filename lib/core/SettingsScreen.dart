@@ -66,7 +66,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             fileOptions: const FileOptions(upsert: true),
           );
 
-      final url = supabase.storage.from('avatars').getPublicUrl(filePath);
+      String url = supabase.storage.from('avatars').getPublicUrl(filePath);
+
+      url = "$url?v=${DateTime.now().millisecondsSinceEpoch}";
 
       await supabase
           .from('profiles')
@@ -319,7 +321,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           decoration: InputDecoration(
             counterText: "",
             filled: true,
-            // فقط کمی شفافیت کمتر، تا کادر مشخص شود
             fillColor: Colors.white.withOpacity(0.12),
             prefixIcon: Icon(icon, color: Colors.white70),
             border: OutlineInputBorder(

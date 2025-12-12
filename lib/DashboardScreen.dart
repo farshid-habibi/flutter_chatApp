@@ -3,20 +3,21 @@ import 'dart:convert';
 import 'dart:convert' as RealtimePayloadType;
 import 'dart:io';
 import 'dart:ui';
+import 'package:Talkify/Screens/Chat/DynamicSnackBar.dart';
+import 'package:Talkify/Screens/Chat/FancySnackBarState.dart';
+import 'package:Talkify/Screens/Chat/chat_page.dart';
+import 'package:Talkify/Screens/Welcome/welcome_screen.dart';
+import 'package:Talkify/core/SettingsScreen.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_application_1/Screens/Chat/DynamicSnackBar.dart';
-import 'package:flutter_application_1/Screens/Chat/FancySnackBarState.dart';
-import 'package:flutter_application_1/Screens/Chat/chat_page.dart';
-import 'package:flutter_application_1/core/SettingsScreen.dart';
+
 import 'package:image_picker/image_picker.dart';
 import 'package:internet_connection_checker/internet_connection_checker.dart';
 import 'package:path/path.dart' as path;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:flutter_application_1/Screens/Welcome/welcome_screen.dart';
 // import 'package:just_audio/just_audio.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -320,12 +321,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  //     await _player.setAsset('assets/sounds/notify.mp3'); // مسیر فایل داخل assets
-  //     await _player.play();
-  //   } catch (e) {
-  //     print("❌ Error playing sound: $e");
-  //   }
-  // }
+ 
 
   Future<void> _openChat(String otherUserId) async {
     if (_isOpeningChat) return;

@@ -2,16 +2,16 @@ import 'dart:async';
 import 'dart:convert' show jsonEncode, jsonDecode;
 import 'dart:io';
 import 'dart:ui';
+import 'package:Talkify/Screens/Chat/FancySnackBarState.dart';
+import 'package:Talkify/Screens/Chat/SmartTextField%20.dart';
+import 'package:Talkify/Screens/Chat/WhatsAppVoiceBubble.dart';
+import 'package:Talkify/core/supabase_client.dart';
 import 'package:bubble/bubble.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_application_1/Screens/Chat/FancySnackBarState.dart';
-import 'package:flutter_application_1/Screens/Chat/SlideTransitionWidget.dart';
-import 'package:flutter_application_1/Screens/Chat/SmartTextField%20.dart';
-import 'package:flutter_application_1/Screens/Chat/WhatsAppVoiceBubble.dart';
-import 'package:flutter_application_1/core/supabase_client.dart';
+
 import 'package:internet_connection_checker/internet_connection_checker.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -136,7 +136,6 @@ class _ChatPageState extends State<ChatPage>
           textDirection: TextDirection.rtl,
           textAlign: TextAlign.justify,
         ),
-        // دکمه Show more / Show less
         if (needsTruncate)
           GestureDetector(
             onTap: () {
@@ -364,7 +363,7 @@ class _ChatPageState extends State<ChatPage>
                                   ),
                                   SizedBox(height: 8),
                                   Text(
-                                    'در حال آپلود...',
+                                    'uploading....',
                                     style: TextStyle(color: Colors.white70),
                                   ),
                                 ],
@@ -576,7 +575,6 @@ class _ChatPageState extends State<ChatPage>
         'created_at': DateTime.now().toIso8601String(),
       });
 
-      // بروزرسانی UI
       setState(() {
         messages.add({
           'id': 'local_${DateTime.now().millisecondsSinceEpoch}',
@@ -630,9 +628,7 @@ class _ChatPageState extends State<ChatPage>
         _isPlaying = true;
         _currentlyPlayingId = messageId;
       });
-    } catch (e) {
-      print('❌ خطا در پخش ویس: $e');
-    }
+    } catch (e) {}
   }
 
   Future<void> _openAudioModules() async {
@@ -733,7 +729,7 @@ class _ChatPageState extends State<ChatPage>
           .select('id')
           .eq('room_id', widget.roomId)
           .neq('sender_id', _currentUserId)
-          .neq('status', 'read'); // فقط پیام‌هایی که خوانده نشده‌اند
+          .neq('status', 'read');
 
       for (final msg in unreadMessages) {
         await _supabase.from('message_reads').upsert({
@@ -743,7 +739,7 @@ class _ChatPageState extends State<ChatPage>
 
         await _supabase
             .from('messages')
-            .update({'status': 'read'}) // 👈 وضعیت را تغییر بده
+            .update({'status': 'read'})
             .eq('id', msg['id']);
       }
     } catch (e) {
@@ -832,7 +828,7 @@ class _ChatPageState extends State<ChatPage>
                   maxLines: 3,
                   style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
-                    hintText: "نوشتن متن...",
+                    hintText: "write message...",
                     hintStyle: TextStyle(
                       color: Colors.white54,
                       fontFamily: 'Vazir',
@@ -853,7 +849,7 @@ class _ChatPageState extends State<ChatPage>
                     TextButton(
                       onPressed: () => Navigator.pop(context),
                       child: const Text(
-                        "لغو",
+                        "Cancel",
                         style: TextStyle(
                           color: Colors.redAccent,
                           fontFamily: 'Vazir',
@@ -871,7 +867,7 @@ class _ChatPageState extends State<ChatPage>
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      child: const Text("ارسال"),
+                      child: const Text("send"),
                     ),
                   ],
                 ),
@@ -1299,7 +1295,7 @@ class _ChatPageState extends State<ChatPage>
     } catch (e) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('خطا در ارسال فایل')));
+      ).showSnackBar(const SnackBar(content: Text('')));
     } finally {
       setState(() {
         _isUploading = false;
@@ -1409,8 +1405,8 @@ class _ChatPageState extends State<ChatPage>
         color: Colors.black.withOpacity(0.8),
       );
 
-      if (!mounted) return; // اگر widget حذف شده بود
-      if (selected == null) return; // منو بسته شد بدون انتخاب
+      if (!mounted) return;
+      if (selected == null) return;
 
       if (selected == 'copy') {
         Clipboard.setData(ClipboardData(text: msg['content'] ?? ''));
@@ -1523,9 +1519,8 @@ class _ChatPageState extends State<ChatPage>
         icon: icon,
         duration: duration,
         gradientColors:
-            gradientColors ??
-            [Color(0xFF6A0DAD), Color(0xFF00BFFF)], // بنفش به آبی
-        onClose: () => overlayEntry.remove(), // اینجا remove می‌کنیم
+            gradientColors ?? [Color(0xFF6A0DAD), Color(0xFF00BFFF)],
+        onClose: () => overlayEntry.remove(),
       ),
     );
 
@@ -1837,7 +1832,6 @@ class _ChatPageState extends State<ChatPage>
       final msg = messageList[i];
       final messageId = msg['id'];
 
-      // ذخیره کلیدها و اندیس‌ها
       messageIndexes.putIfAbsent(messageId, () => i);
       messageKeys.putIfAbsent(messageId, () => GlobalKey());
 
@@ -2129,12 +2123,12 @@ class _ChatPageState extends State<ChatPage>
                       Icons.delete_outline,
                       color: Colors.redAccent,
                     ),
-                    tooltip: "حذف پیام‌ها",
+                    tooltip: "Delete Message",
                     onPressed: _deleteSelectedMessages,
                   ),
                   IconButton(
                     icon: const Icon(Icons.close, color: Colors.white),
-                    tooltip: "لغو انتخاب",
+                    tooltip: "Cancel selection",
                     onPressed: () {
                       setState(() {
                         _isSelectionMode = false;
@@ -2290,7 +2284,7 @@ class _ChatPageState extends State<ChatPage>
                 builder: (context, snapshot) {
                   if (_isOffline) {
                     if (messages.isEmpty) {
-                      _loadMessagesCache(); // بارگذاری کش
+                      _loadMessagesCache();
                     }
                     if (messages.isNotEmpty) {
                       return _buildMessagesList(messages);
@@ -2435,8 +2429,7 @@ class _ChatPageState extends State<ChatPage>
                                   : Alignment.centerLeft,
                               child: isVoice && mediaUrl.isNotEmpty
                                   ? WhatsAppVoiceBubble(
-                                      audioUrl:
-                                          mediaUrl, // حتما URL اینترنتی Supabase
+                                      audioUrl: mediaUrl,
                                       isMe: isMine,
                                       sentTime: DateTime.parse(
                                         msg['created_at'],
@@ -2546,7 +2539,6 @@ class _ChatPageState extends State<ChatPage>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // نمایش نوار ریپلای (در صورت وجود)
                     if (_replyingTo != null)
                       Container(
                         width: double.infinity,
@@ -2680,7 +2672,7 @@ class _ChatPageState extends State<ChatPage>
                                   print(
                                     "Recorder not initialized yet! Waiting...",
                                   );
-                                  await _initRecorder(); // اطمینان از آماده بودن رکوردر
+                                  await _initRecorder();
                                 }
 
                                 if (!_isRecording) {

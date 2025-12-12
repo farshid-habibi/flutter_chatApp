@@ -1,5 +1,5 @@
+import 'package:Talkify/constants.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_application_1/constants.dart';
 
 class AlreadyHaveAnAccountCheck extends StatelessWidget {
   final bool login;
@@ -14,7 +14,7 @@ class AlreadyHaveAnAccountCheck extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
-      mainAxisSize: MainAxisSize.min,  // محدود کردن عرض Row
+      mainAxisSize: MainAxisSize.min,  
       children: <Widget>[
         Flexible(
           child: Text(

@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:Talkify/Screens/Login/login_screen.dart';
+import 'package:Talkify/components/already_have_an_account_acheck.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_application_1/Screens/Chat/FancySnackBarState.dart';
-import 'package:flutter_application_1/Screens/Login/login_screen.dart';
-import 'package:flutter_application_1/components/already_have_an_account_acheck.dart';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../constants.dart';

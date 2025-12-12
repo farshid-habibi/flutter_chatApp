@@ -1,7 +1,8 @@
+import 'package:Talkify/components/background.dart';
+import 'package:Talkify/constants.dart';
+import 'package:Talkify/responsive.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_application_1/components/background.dart';
-import 'package:flutter_application_1/constants.dart';
-import 'package:flutter_application_1/responsive.dart';
+
 
 import 'components/sign_up_top_image.dart';
 import 'components/signup_form.dart';
@@ -12,18 +13,18 @@ class SignUpScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      resizeToAvoidBottomInset: true, // اجازه می‌ده که ویجت‌ها با باز شدن کیبورد جا‌به‌جا بشن
+      resizeToAvoidBottomInset: true, 
       body: Background(
         child: GestureDetector(
-          onTap: () => FocusScope.of(context).unfocus(), // بستن کیبورد با لمس فضای خالی
+          onTap: () => FocusScope.of(context).unfocus(),
           child: LayoutBuilder(
             builder: (context, constraints) {
               return SingleChildScrollView(
-                reverse: true, // اسکرول از پایین به بالا (برای نمایش دکمه هنگام باز بودن کیبورد)
+                reverse: true, 
                 padding: EdgeInsets.only(
                   left: defaultPadding,
                   right: defaultPadding,
-                  bottom: MediaQuery.of(context).viewInsets.bottom + 20, // بالا آوردن دکمه‌ها
+                  bottom: MediaQuery.of(context).viewInsets.bottom + 20,
                   top: 20,
                 ),
                 child: ConstrainedBox(

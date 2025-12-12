@@ -16,8 +16,8 @@ class DynamicSnackBar {
           left: 20,
           right: 20,
           bottom: (keyboardHeight > 0)
-              ? keyboardHeight + 20   // روی کیبورد
-              : 40,                    // پایین صفحه
+              ? keyboardHeight + 20 
+              : 40, 
           child: _AnimatedToast(
             message: message,
             background: background,

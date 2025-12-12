@@ -44,7 +44,7 @@ class FancySnackBarState extends State<FancySnackBar>
 
     Future.delayed(widget.duration, () async {
       await _controller.reverse();
-      widget.onClose(); // فقط این overlayEntry را remove می‌کنیم
+      widget.onClose(); 
     });
   }
 
@@ -101,7 +101,7 @@ class FancySnackBarState extends State<FancySnackBar>
                   GestureDetector(
                     onTap: () async {
                       await _controller.reverse();
-                      widget.onClose(); // همین‌جا هم remove می‌کنیم
+                      widget.onClose(); 
                     },
                     child: Icon(Icons.close, color: Colors.white70, size: 22),
                   ),
