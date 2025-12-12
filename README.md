@@ -1,65 +1,73 @@
-<div dir="rtl">
+# 💬 ModernChat — Realtime Chat Application (Flutter + Supabase)
 
-# 💬 ModernChat — اپلیکیشن چت ریل‌تایم (Flutter + Supabase)
-
-
-
-## ⭐ ویژگی‌های کلیدی اپلیکیشن
-
-### 🔐 احراز هویت (Authentication)
-- ثبت‌نام و ورود با ایمیل  
-- مدیریت سشن کاربر  
-- ذخیره اطلاعات پروفایل (نام کاربری، آواتار، توضیحات)  
-- خروج امن (SignOut)
-
-### 💬 چت ریل‌تایم (Realtime Chat)
-- ارسال و دریافت پیام بدون تأخیر با Supabase Realtime  
-- نمایش پیام‌های خوانده‌نشده (Unread badge)  
-- دریافت خودکار پیام‌ها بدون نیاز به Refresh  
-- مدل پیام حرفه‌ای و قابل توسعه
-
-### 👤 پروفایل کاربر
-- آپلود آواتار در Supabase Storage  
-- ویرایش نام کاربری و توضیحات  
-- نمایش پروفایل زیبا در منوی کناری با طراحی Glass UI
-
-### 🔍 جستجوی کاربران
-- جستجو با مکانیزم **Debounce**  
-- جستجو بر اساس username با ILIKE PostgreSQL  
-- سرعت بالا و بهینه در دیتابیس
-
-### 🎨 رابط کاربری (UI/UX)
-- طراحی مدرن با سبک Glassmorphism (Blur)  
-- انیمیشن‌های نرم و طبیعی  
-- رنگ‌بندی حرفه‌ای  
-- تجربه کاربری روان و ریسپانسیو
+ModernChat is a fast, modern, and fully realtime chat application built with **Flutter** and **Supabase**.  
+It focuses on clean UI, smooth animations, and reliable realtime communication.
 
 ---
 
-## 📸 اسکرین‌شات‌ها
+## ⭐ Features
 
-| صفحه ورود | صفحه چت | پروفایل |
-|-----------|---------|----------|
+### 🔐 Authentication
+- Email & password login/signup  
+- User metadata (username, avatar, bio)  
+- Secure sign-out  
+- Persistent session handling
+
+### 💬 Realtime Chat
+- Instant message sending/receiving using Supabase Realtime  
+- Live updates without refresh  
+- Unread message indicator  
+- Scalable message model  
+- Efficient stream-based architecture
+
+### 👤 User Profile
+- Avatar upload via Supabase Storage  
+- Edit username & bio  
+- Modern glass-style drawer UI
+
+### 🔍 User Search
+- Debounced search input  
+- Fast PostgreSQL `ILIKE` query  
+- Responsive and optimized results
+
+### 🎨 UI / UX
+- Modern **Glassmorphism (Blur)** design  
+- Smooth animations  
+- Consistent color palette  
+- Fully responsive UI  
+- Clean component architecture
+
+---
+
+## 📸 Screenshots
+
+| Login | Chats | Profile |
+|-------|--------|---------|
 | ![](screenshots/login.png) | ![](screenshots/chat.png) | ![](screenshots/profile.png) |
 
-> اگر اسکرین‌شات‌ها آماده نیست، از تصاویر نمونه استفاده شود.
+> Add your real screenshots in the `screenshots/` folder.
 
 ---
 
-## 🛠️ تکنولوژی‌های استفاده‌شده
+## 🛠️ Tech Stack
 
 - **Flutter 3.x**
 - **Dart**
 - **Supabase**
-  - Auth  
+  - Authentication  
   - Realtime  
   - Storage  
-  - PostgreSQL  
+  - PostgreSQL Database  
+- **State Management** (StreamBuilder & Controllers)
 - **CachedNetworkImage**
-- **StreamBuilder**
-- **Glass Effect UI / Modern Animations**
+- **Google Fonts**
 
 ---
 
+## 🚀 Getting Started
 
+### 1️⃣ Clone the repository
 
+```bash
+git clone https://github.com/YOUR_USERNAME/YOUR_REPO.git
+cd YOUR_REPO
