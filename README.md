@@ -41,19 +41,17 @@ It focuses on clean UI, smooth animations, and reliable realtime communication.
 
 ## 📸 Screenshots
 
-| Login | Chat List | Chat Room |
+| Wellcome | Login | Register | 
 |-------|----------|-----------|
 | ![](screenshots/img%20(1).jpg) | ![](screenshots/img%20(2).jpg) | ![](screenshots/img%20(3).jpg) |
 
 | Profile | Settings | Search |
 |---------|---------|-------|
-| ![](screenshots/img%20(4).jpg) | ![](screenshots/img%20(5).jpg) | ![](screenshots/img%20(6).jpg) |
+| ![](screenshots/img%20(4).jpg) | ![](screenshots/img%20(5).jpg) | ![](screenshots/img%20(8).jpg) | 
 
-| Notifications | Other |
-|---------------|------|
-| ![](screenshots/img%20(7).jpg) | ![](screenshots/img%20(8).jpg) |
-
-
+| Chat Page |
+|---------------| 
+| ![](screenshots/img%20(7).jpg)  
 ---
 
 ## 🛠️ Tech Stack
