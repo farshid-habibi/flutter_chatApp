@@ -67,12 +67,4 @@ It focuses on clean UI, smooth animations, and reliable realtime communication.
 - **CachedNetworkImage**
 - **Google Fonts**
 
----
 
-## 🚀 Getting Started
-
-### 1️⃣ Clone the repository
-
-```bash
-git clone https://github.com/YOUR_USERNAME/YOUR_REPO.git
-cd YOUR_REPO
