@@ -45,13 +45,13 @@ It focuses on clean UI, smooth animations, and reliable realtime communication.
 |-------|----------|-----------|
 | ![](screenshots/img%20(1).jpg) | ![](screenshots/img%20(2).jpg) | ![](screenshots/img%20(3).jpg) |
 
-| Profile | Settings | Search |
+| Profile | Settings | Search User|
 |---------|---------|-------|
 | ![](screenshots/img%20(4).jpg) | ![](screenshots/img%20(5).jpg) | ![](screenshots/img%20(8).jpg) | 
 
-| Remove user | Chat | Search |
-|---------|---------|-------|
-| ![](screenshots/img%20(4).jpg) | ![](screenshots/img%20(5).jpg) | ![](screenshots/img%20(8).jpg) | 
+| Remove user | Chat 
+|---------|---------|
+| ![](screenshots/remove.jpg) | ![](screenshots/chat.jpg)  
 ---
 
 ## 🛠️ Tech Stack
