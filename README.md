@@ -41,9 +41,7 @@ It focuses on clean UI, smooth animations, and reliable realtime communication.
 
 ## 📸 Screenshots
 
-| Login | Chats | Profile |
-|-------|--------|---------|
-| ![](screenshots/login.png) | ![](screenshots/chat.png) | ![](screenshots/profile.png) |
+| ![](screenshots/img (1).jpg) | ![](screenshots/img (2).jpg) | ![](screenshots/img (3).jpg) || ![](screenshots/img (4).jpg) || ![](screenshots/img (5).jpg) || ![](screenshots/img (6).jpg) || ![](screenshots/img (7).jpg) | ![](screenshots/img (8).jpg) |
 
 > Add your real screenshots in the `screenshots/` folder.
 
