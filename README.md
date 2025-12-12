@@ -50,7 +50,6 @@ It focuses on clean UI, smooth animations, and reliable realtime communication.
 | ![](screenshots/img%20(4).jpg) | ![](screenshots/img%20(5).jpg) | ![](screenshots/img%20(8).jpg) | 
 
 | Chat Page |
-|---------------| 
 | ![](screenshots/img%20(7).jpg)  
 ---
 
